@@ -34,19 +34,9 @@ namespace FishingExpanded.Services
             bool isNonFish = itemData != null && Utils.SpecialFishHelper.IsNonFish(itemData.Category);
             int maxLevel = isNonFish ? Utils.SpecialFishHelper.GetMaxLevelForNonFish() : 100;
 
-            // BATCH-022: 只在真正达到新等级时显示提示
-            // 如果旧等级已经封顶，不再显示
-            if (oldLevel >= maxLevel)
-            {
-                ModEntry.ModMonitor.Log(
-                    $"[HUDNotifier] 已封顶，跳过提示 | 鱼: {fishName} ({fishId}) | 等级: {oldLevel} → {newLevel} | 上限: {maxLevel}",
-                    StardewModdingAPI.LogLevel.Debug);
-                return;
-            }
-
             string message;
 
-            // 检测本次是否达到封顶
+            // 达到封顶后的后续成功也继续显示封顶文案；等级/统计仍由 DifficultyManager 保持不变。
             if (newLevel >= maxLevel)
             {
                 if (isNonFish)

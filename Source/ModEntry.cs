@@ -113,8 +113,10 @@ namespace FishingExpanded
             // 检查是否进入FarmHouse
             if (e.NewLocation is StardewValley.Locations.FarmHouse)
             {
-                Monitor.Log($"[ModEntry] 玩家进入FarmHouse: {e.NewLocation.Name}", LogLevel.Debug);
-                GiantFishManager.OnEnterFarmHouse();
+                Monitor.Log(
+                    $"[ModEntry] 玩家进入FarmHouse: {e.Player?.UniqueMultiplayerID} | 地点: {e.NewLocation.Name}",
+                    LogLevel.Debug);
+                GiantFishManager.OnEnterFarmHouse(e.Player);
             }
         }
 

@@ -28,7 +28,6 @@ namespace FishingExpanded.Patches
             public bool ExperienceAdjusted { get; set; }
             public int CreateFishCalls { get; set; }
             public bool AllowAdditionalCreateFish { get; set; }
-            public Item PendingOverflowItem { get; set; }
         }
 
         // BATCH-009: 以玩家+鱼ID隔离待处理事实，不修改原生动画参数
@@ -204,75 +203,6 @@ namespace FishingExpanded.Patches
             data.AllowAdditionalCreateFish = remainingFish == 1;
         }
 
-        internal static bool TryTrackPendingOverflow(Farmer owner, Item item)
-        {
-            if (owner == null || item == null || item.Stack <= 0 || owner.Items.Contains(item))
-                return false;
-
-            string fishId = Utils.SpecialFishHelper.NormalizeItemId(item.QualifiedItemId);
-            if (!_pendingFish.TryGetValue(GetPendingKey(owner, fishId), out var data))
-                return false;
-
-            data.PendingOverflowItem = item;
-            return true;
-        }
-
-        internal static bool TryTakePendingOverflow(
-            FishingRod rod,
-            out Item item,
-            out PendingFishData data)
-        {
-            item = null;
-            data = null;
-            Farmer owner = rod.getLastFarmerToUse();
-            string fishId = rod.whichFish?.QualifiedItemId;
-            if (owner == null || string.IsNullOrEmpty(fishId) ||
-                !_pendingFish.TryGetValue(GetPendingKey(owner, fishId), out data) ||
-                data.PendingOverflowItem == null || data.PendingOverflowItem.Stack <= 0)
-            {
-                return false;
-            }
-
-            item = data.PendingOverflowItem;
-            return true;
-        }
-
-        private static void ClearPendingOverflow(PendingFishData data)
-        {
-            if (data != null)
-                data.PendingOverflowItem = null;
-        }
-
-        private static void AddPendingOverflowToMenu(
-            FishingRod rod,
-            int remainingFish)
-        {
-            if (!TryTakePendingOverflow(rod, out Item item, out PendingFishData data))
-                return;
-
-            // 当原生 remainingFish == 1 时，原生已经重新创建并放入一条鱼，
-            // 所以只清掉旧引用，避免把同一份溢出鱼获重复加入菜单。
-            if (remainingFish == 1)
-            {
-                ClearPendingOverflow(data);
-                return;
-            }
-
-            if (StardewValley.Game1.activeClickableMenu is StardewValley.Menus.ItemGrabMenu menu)
-            {
-                if (!menu.ItemsToGrabMenu.actualInventory.Contains(item))
-                    menu.ItemsToGrabMenu.actualInventory.Add(item);
-                ClearPendingOverflow(data);
-                return;
-            }
-
-            var fallbackMenu = new StardewValley.Menus.ItemGrabMenu(
-                new List<Item> { item }, rod).setEssential(essential: true);
-            fallbackMenu.source = 3;
-            StardewValley.Game1.activeClickableMenu = fallbackMenu;
-            ClearPendingOverflow(data);
-        }
-
         /// <summary>普通钓鱼只有一次 CreateFish；宝箱和 Trout Derby 需保留到原生后续回调。</summary>
         [HarmonyPatch(nameof(FishingRod.doneHoldingFish))]
         [HarmonyPostfix]
@@ -317,7 +247,6 @@ namespace FishingExpanded.Patches
         {
             try
             {
-                AddPendingOverflowToMenu(__instance, remainingFish);
                 ClearPending(__instance);
             }
             catch (Exception ex)
@@ -351,7 +280,6 @@ namespace FishingExpanded.Patches
         {
             try
             {
-                AddPendingOverflowToMenu(__instance, remainingFish);
                 ClearPending(__instance);
             }
             catch (Exception ex)
@@ -364,60 +292,8 @@ namespace FishingExpanded.Patches
         {
             return $"{owner.UniqueMultiplayerID}:{Utils.SpecialFishHelper.NormalizeItemId(fishId)}";
         }
-    }
 
-    /// <summary>Farmer Patch - 钓鱼数量转化</summary>
-    [HarmonyPatch(typeof(Farmer))]
-    internal class FarmerFishingPatches
-    {
-        /// <summary>
-        /// 原生 addItemToInventoryBool 允许“部分加入”并返回 true，但普通钓鱼流程
-        /// 只在返回 false 时打开 ItemGrabMenu；高倍鱼的剩余堆叠必须在这里补入原生菜单。
-        /// </summary>
-        [HarmonyPatch(nameof(Farmer.addItemToInventoryBool))]
-        [HarmonyPostfix]
-        public static void AddItemToInventoryBool_Postfix(
-            Farmer __instance,
-            Item item,
-            bool __result)
-        {
-            try
-            {
-                if (!__instance.IsLocalPlayer || item == null || item.Stack <= 0 ||
-                    __instance.Items.Contains(item))
-                {
-                    return;
-                }
-
-                string fishId = Utils.SpecialFishHelper.NormalizeItemId(item.QualifiedItemId);
-                if (!FishingRodPatches.TryGetPending(__instance, fishId, out var data))
-                    return;
-
-                FishingRod rod = __instance.CurrentTool as FishingRod;
-                bool deferToFishingRewardMenu = rod != null &&
-                    (rod.treasureCaught || rod.gotTroutDerbyTag);
-                if (deferToFishingRewardMenu)
-                {
-                    FishingRodPatches.TryTrackPendingOverflow(__instance, item);
-                    return;
-                }
-
-                // 返回 false 时原生 doneHoldingFish 会负责打开菜单；这里只补“部分加入但
-                // 返回 true”的剩余堆叠，避免重复打开两个菜单。
-                if (!__result)
-                    return;
-
-                var menu = new StardewValley.Menus.ItemGrabMenu(
-                    new List<Item> { item }, rod).setEssential(essential: true);
-                StardewValley.Game1.activeClickableMenu = menu;
-            }
-            catch (Exception ex)
-            {
-                ModEntry.ModMonitor.Log($"Farmer.addItemToInventoryBool Postfix 失败: {ex}", LogLevel.Error);
-            }
-        }
-
-        /// <summary>BATCH-009: caughtFish Postfix - 修改进入背包的数量</summary>
+        /// <summary>caughtFish Postfix - 记录成功结算并登记展示事实</summary>
         [HarmonyPatch(nameof(Farmer.caughtFish))]
         [HarmonyPostfix]
         public static void CaughtFish_Postfix(

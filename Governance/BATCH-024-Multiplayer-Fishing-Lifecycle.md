@@ -1,7 +1,15 @@
 # BATCH-024 多人数据与鱼获生命周期修正
 
-**当前阶段**：R1 完成，待 R2 真实验收（2026-08-05）
+**当前阶段**：R1 完成，Build/Deploy 门禁通过，待 R2 真实验收（2026-08-05）
 **准入授权**：用户确认必须支持多人，并授权部署、启动游戏和实机验收。
+
+**本轮准入证据**：当前安装 `D:\GGGGG\K1515\Stardew Valley.dll`（SHA-256 `DFE341CAFD91565B675365AC69F49C7A6DA47A24F8399A7DB0D3AB52F79EB32B`）已核对 `BobberBar`、`FishingRod`、`Farmer.caughtFish`、`CreateFish`、原生 `addItemToInventoryBool`/`ItemGrabMenu`、`CollectionsPage` 和 `Object.drawWhenHeld` 调用链；源码静态审查发现展示状态未按玩家隔离、NPC 原生对话未保存恢复、自建溢出补菜单与原生菜单存在第二所有者。
+
+**本轮观测决定**：复用现有有界 `[FishingRod]`、`[BobberBar]`、`[GiantFishManager]` 日志，不新增逐 Tick/逐对象诊断；本轮修改由源码所有权和当前安装契约足以定位，纯台账/设计清理不增加运行诊断。
+
+**本轮自动化验收决定**：复用现有控制台命令和 `TESTING-GUIDE.md` 场景；不新增测试专用生产入口。R2 必须分别验证多人展示隔离、原生数量/ItemGrabMenu、NPC 二次对话恢复和鱼尺寸/手持视觉缩放。
+
+**本轮 Build/Deploy 事实**：Release `0.5.10` 构建 0 警告/0 错误；目标 `D:\GGGGG\K1515\Mods\FishingExpanded` 的 `FishingExpanded.dll` SHA-256 为 `13B3391F52D2E4B8F5EB739C28779D36698B44A7BCB993D9BE7870780CA3FCE1`，与 `Source\bin\Release\net6.0` 一致；目标未包含 `config.json`，最终旧文件备份于 `DeploymentBackups\FishingExpanded-20260805-183148`。
 
 ## R0 证据与第一处分歧
 
@@ -41,6 +49,9 @@
 - 在 `Farmer.gainExperience(1, ...)` 的原生写入边界应用经验倍率；鱼王 BobberBar 构造期间屏蔽隐藏钓鱼等级。
 - 星标挑战宣言从 BobberBar 构造后只读取星标和当前等级，由 HUD 统一展示。
 - 等级建议在 BobberBar 构造后由 HUD 只读展示，不建立第二份难度或钓鱼等级状态。
+- 删除 `FishingRodPatches` 对 `Farmer.addItemToInventoryBool` 的自建溢出追踪和补菜单；原生 `CreateFish` 返回物品后继续由原生背包与 `ItemGrabMenu` 提交。
+- 巨型鱼展示事实按玩家 ID 隔离；手持绘制从 `drawWhenHeld(..., Farmer)` 读取对应玩家，进入 FarmHouse 只清理进入者的事实。
+- 首次 NPC 巨型鱼主动对话保存原生 `CurrentDialogue`，第二次交互先恢复原生栈再交给原生 `checkAction`。
 
 ## R2 验收
 

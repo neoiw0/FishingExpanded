@@ -44,6 +44,7 @@ namespace FishingExpanded.Patches
 
                     yield return codes[i]; // ✅ 先返回 ldc.r4 4 → 栈：[4f]
                     yield return new CodeInstruction(OpCodes.Ldarg_0); // 栈：[4f, obj]
+                    yield return new CodeInstruction(OpCodes.Ldarg_3); // 栈：[4f, obj, farmer]
                     yield return new CodeInstruction(OpCodes.Call, getScaleMethod); // 栈：[4f, visualScale]
                     yield return new CodeInstruction(OpCodes.Mul); // 栈：[4f * visualScale]
 
@@ -80,7 +81,7 @@ namespace FishingExpanded.Patches
         /// <summary>计算手持物品的视觉缩放（由Transpiler调用）</summary>
         /// <param name="obj">Object实例</param>
         /// <returns>缩放倍数（1.0 = 不缩放）</returns>
-        public static float GetDrawScale(StardewValley.Object obj)
+        public static float GetDrawScale(StardewValley.Object obj, Farmer owner)
         {
             try
             {
@@ -89,7 +90,7 @@ namespace FishingExpanded.Patches
                     return 1.0f;
 
                 string fishId = obj.QualifiedItemId;
-                return GiantFishManager.GetFishVisualScale(fishId);
+                return GiantFishManager.GetFishVisualScale(fishId, owner);
             }
             catch (Exception ex)
             {

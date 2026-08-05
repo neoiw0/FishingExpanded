@@ -13,17 +13,46 @@ namespace FishingExpanded.Services
     /// <summary>超大鱼展示管理器</summary>
     public static class GiantFishManager
     {
-        private static FishDisplayData _displayData = new FishDisplayData();
+        // 展示事实按玩家隔离；难度/星标的 modData 隔离不能替代这里的运行时隔离。
+        private static readonly Dictionary<long, FishDisplayData> _displayDataByPlayer =
+            new Dictionary<long, FishDisplayData>();
+
+        private static readonly Dictionary<(long playerId, string fishId), int> _lastLoggedNearbyCheck =
+            new Dictionary<(long, string), int>();
+
+        private static readonly Dictionary<(long playerId, string npcName), Dialogue[]> _originalDialogues =
+            new Dictionary<(long, string), Dialogue[]>();
+
+        private static FishDisplayData GetDisplayData(Farmer player, bool create)
+        {
+            if (player == null)
+                return null;
+
+            if (!_displayDataByPlayer.TryGetValue(player.UniqueMultiplayerID, out var data) && create)
+            {
+                data = new FishDisplayData();
+                _displayDataByPlayer[player.UniqueMultiplayerID] = data;
+            }
+
+            return data;
+        }
 
         /// <summary>记录刚钓到的超大鱼</summary>
         public static void RecordGiantFish(string fishId, int multiplier, int fishSize)
         {
+            RecordGiantFish(Game1.player, fishId, multiplier, fishSize);
+        }
+
+        /// <summary>记录指定玩家刚钓到的超大鱼。</summary>
+        public static void RecordGiantFish(Farmer player, string fishId, int multiplier, int fishSize)
+        {
             string normalizedFishId = SpecialFishHelper.NormalizeItemId(fishId);
-            if (multiplier > 15 && !SpecialFishHelper.IsLegendaryFish(normalizedFishId) && IsFish(normalizedFishId))
+            FishDisplayData displayData = GetDisplayData(player, create: true);
+            if (displayData != null && multiplier > 15 && !SpecialFishHelper.IsLegendaryFish(normalizedFishId) && IsFish(normalizedFishId))
             {
-                _displayData.ActiveGiantFish[normalizedFishId] = (multiplier, fishSize);
+                displayData.ActiveGiantFish[normalizedFishId] = (multiplier, fishSize);
                 ModEntry.ModMonitor.Log(
-                    $"[GiantFishManager] 超大鱼记录 | 鱼ID: {normalizedFishId} | " +
+                    $"[GiantFishManager] 超大鱼记录 | 玩家: {player.UniqueMultiplayerID} | 鱼ID: {normalizedFishId} | " +
                     $"倍数: {multiplier} | fishSize: {fishSize} | " +
                     $"视觉缩放: ×{Math.Pow(multiplier, 1.0/3.0):F2}",
                     StardewModdingAPI.LogLevel.Info);
@@ -35,8 +64,9 @@ namespace FishingExpanded.Services
         {
             if (!Context.IsWorldReady || Game1.player == null) return;
 
+            FishDisplayData displayData = GetDisplayData(Game1.player, create: false);
             // 性能优化：快速路径 - 没有激活的超大鱼时直接返回
-            if (_displayData.ActiveGiantFish.Count == 0) return;
+            if (displayData == null || displayData.ActiveGiantFish.Count == 0) return;
 
             // 必须是真正举在手上的物品；仅切换到物品栏不触发巨型鱼效果。
             var currentItem = Game1.player.ActiveObject;
@@ -45,7 +75,7 @@ namespace FishingExpanded.Services
             string fishId = SpecialFishHelper.NormalizeItemId(currentItem.QualifiedItemId);
 
             // 检查是否是激活的超大鱼
-            if (!_displayData.ActiveGiantFish.TryGetValue(fishId, out var fishData)) return;
+            if (!displayData.ActiveGiantFish.TryGetValue(fishId, out var fishData)) return;
 
             int multiplier = fishData.multiplier;
             int fishSize = fishData.fishSize;
@@ -56,14 +86,15 @@ namespace FishingExpanded.Services
             if (nearbyNPCs.Count > 0)
             {
                 // 只在有NPC时记录一次（避免每半秒输出）
-                if (!_lastLoggedNearbyCheck.ContainsKey(fishId) ||
-                    _lastLoggedNearbyCheck[fishId] != nearbyNPCs.Count)
+                var logKey = (Game1.player.UniqueMultiplayerID, fishId);
+                if (!_lastLoggedNearbyCheck.ContainsKey(logKey) ||
+                    _lastLoggedNearbyCheck[logKey] != nearbyNPCs.Count)
                 {
                     ModEntry.ModMonitor.Log(
-                        $"[GiantFishManager] 检测到附近NPC | 鱼ID: {fishId} | " +
+                        $"[GiantFishManager] 检测到附近NPC | 玩家: {Game1.player.UniqueMultiplayerID} | 鱼ID: {fishId} | " +
                         $"5格内NPC数量: {nearbyNPCs.Count}",
                         StardewModdingAPI.LogLevel.Debug);
-                    _lastLoggedNearbyCheck[fishId] = nearbyNPCs.Count;
+                    _lastLoggedNearbyCheck[logKey] = nearbyNPCs.Count;
                 }
             }
 
@@ -73,18 +104,20 @@ namespace FishingExpanded.Services
             }
         }
 
-        private static Dictionary<string, int> _lastLoggedNearbyCheck = new Dictionary<string, int>();
-
         /// <summary>触发NPC冒泡</summary>
         private static void TriggerNPCBubble(NPC npc, string fishId, int fishSize)
         {
+            FishDisplayData displayData = GetDisplayData(Game1.player, create: true);
+            if (displayData == null)
+                return;
+
             // 检查今天是否已触发过这种鱼
-            if (!_displayData.NPCBubbleTriggered.ContainsKey(npc.Name))
+            if (!displayData.NPCBubbleTriggered.ContainsKey(npc.Name))
             {
-                _displayData.NPCBubbleTriggered[npc.Name] = new HashSet<string>();
+                displayData.NPCBubbleTriggered[npc.Name] = new HashSet<string>();
             }
 
-            if (_displayData.NPCBubbleTriggered[npc.Name].Contains(fishId)) return;
+            if (displayData.NPCBubbleTriggered[npc.Name].Contains(fishId)) return;
 
             // 生成随机文案
             var itemData = ItemRegistry.GetDataOrErrorItem(fishId);
@@ -95,7 +128,7 @@ namespace FishingExpanded.Services
             npc.showTextAboveHead(message);
 
             // 记录触发
-            _displayData.NPCBubbleTriggered[npc.Name].Add(fishId);
+            displayData.NPCBubbleTriggered[npc.Name].Add(fishId);
 
             ModEntry.ModMonitor.Log(
                 $"[GiantFishManager] NPC冒泡触发 | NPC: {npc.Name} | 鱼ID: {fishId} | " +
@@ -130,15 +163,25 @@ namespace FishingExpanded.Services
         /// <summary>进入FarmHouse时清空超大鱼</summary>
         public static void OnEnterFarmHouse()
         {
-            int clearedCount = _displayData.ActiveGiantFish.Count;
-            _displayData.ClearActiveGiantFish();
-            _lastLoggedNearbyCheck.Clear();
+            OnEnterFarmHouse(Game1.player);
+        }
+
+        /// <summary>只清理进入 FarmHouse 的玩家自己的超大鱼事实。</summary>
+        public static void OnEnterFarmHouse(Farmer player)
+        {
+            FishDisplayData displayData = GetDisplayData(player, create: false);
+            int clearedCount = displayData?.ActiveGiantFish.Count ?? 0;
+            displayData?.ClearActiveGiantFish();
+            ClearDialogueSnapshots(player);
+
+            foreach (var key in _lastLoggedNearbyCheck.Keys.Where(key => key.playerId == player?.UniqueMultiplayerID).ToList())
+                _lastLoggedNearbyCheck.Remove(key);
 
             // BATCH-007: FarmerPatches已删除，ObjectPatches无需缓存管理
             if (clearedCount > 0)
             {
                 ModEntry.ModMonitor.Log(
-                    $"[GiantFishManager] 进入FarmHouse | 清空超大鱼记录: {clearedCount}种",
+                    $"[GiantFishManager] 进入FarmHouse | 玩家: {player?.UniqueMultiplayerID} | 清空超大鱼记录: {clearedCount}种",
                     StardewModdingAPI.LogLevel.Info);
             }
         }
@@ -146,15 +189,20 @@ namespace FishingExpanded.Services
         /// <summary>每日重置</summary>
         public static void OnDayStarted()
         {
-            int bubbleCount = _displayData.NPCBubbleTriggered.Count;
-            int dialogueCount = _displayData.NPCDialogueTriggered.Count;
-
-            // 设计要求：巨型鱼只在进入 FarmHouse 后永久清除；每日只重置 NPC 当日触发次数。
-            _displayData.ResetDailyTriggers();
+            int bubbleCount = 0;
+            int dialogueCount = 0;
+            foreach (FishDisplayData displayData in _displayDataByPlayer.Values)
+            {
+                bubbleCount += displayData.NPCBubbleTriggered.Count;
+                dialogueCount += displayData.NPCDialogueTriggered.Count;
+                // 设计要求：巨型鱼只在进入 FarmHouse 后永久清除；每日只重置 NPC 当日触发次数。
+                displayData.ResetDailyTriggers();
+            }
+            _originalDialogues.Clear();
             _lastLoggedNearbyCheck.Clear();
 
             ModEntry.ModMonitor.Log(
-                $"[GiantFishManager] 每日重置 | 保留超大鱼: {_displayData.ActiveGiantFish.Count}种 | " +
+                    $"[GiantFishManager] 每日重置 | 玩家数: {_displayDataByPlayer.Count} | " +
                 $"清空冒泡记录: {bubbleCount}个NPC | 对话记录: {dialogueCount}个NPC",
                 StardewModdingAPI.LogLevel.Info);
         }
@@ -162,15 +210,23 @@ namespace FishingExpanded.Services
         /// <summary>切换存档或返回标题时清除运行时展示数据。</summary>
         public static void ResetForSave()
         {
-            _displayData = new FishDisplayData();
+            _displayDataByPlayer.Clear();
             _lastLoggedNearbyCheck.Clear();
+            _originalDialogues.Clear();
         }
 
         /// <summary>获取鱼的视觉缩放倍数</summary>
         public static float GetFishVisualScale(string fishId)
         {
+            return GetFishVisualScale(fishId, Game1.player);
+        }
+
+        /// <summary>获取指定玩家手持鱼的视觉缩放倍数。</summary>
+        public static float GetFishVisualScale(string fishId, Farmer player)
+        {
             string normalizedFishId = SpecialFishHelper.NormalizeItemId(fishId);
-            if (_displayData.ActiveGiantFish.TryGetValue(normalizedFishId, out var fishData))
+            FishDisplayData displayData = GetDisplayData(player, create: false);
+            if (displayData != null && displayData.ActiveGiantFish.TryGetValue(normalizedFishId, out var fishData))
             {
                 return DifficultyCalculator.GetVisualScale(fishData.multiplier);
             }
@@ -191,16 +247,21 @@ namespace FishingExpanded.Services
 
             string fishId = SpecialFishHelper.NormalizeItemId(player.ActiveObject.QualifiedItemId);
 
+            FishDisplayData displayData = GetDisplayData(player, create: true);
             // 检查是否是激活的超大鱼
-            if (!_displayData.ActiveGiantFish.TryGetValue(fishId, out var fishData)) return null;
+            if (displayData == null || !displayData.ActiveGiantFish.TryGetValue(fishId, out var fishData)) return null;
 
             // 检查今天是否已触发过对话
-            if (!_displayData.NPCDialogueTriggered.ContainsKey(npc.Name))
+            if (!displayData.NPCDialogueTriggered.ContainsKey(npc.Name))
             {
-                _displayData.NPCDialogueTriggered[npc.Name] = new HashSet<string>();
+                displayData.NPCDialogueTriggered[npc.Name] = new HashSet<string>();
             }
 
-            if (_displayData.NPCDialogueTriggered[npc.Name].Contains(fishId)) return null;
+            if (displayData.NPCDialogueTriggered[npc.Name].Contains(fishId))
+            {
+                RestoreOriginalDialogue(npc, player);
+                return null;
+            }
 
             // 生成替换对话
             var itemData = ItemRegistry.GetDataOrErrorItem(fishId);
@@ -208,9 +269,31 @@ namespace FishingExpanded.Services
             string dialogue = NPCDialogueGenerator.GenerateFishPraise(fishName, fishData.fishSize);
 
             // 记录触发
-            _displayData.NPCDialogueTriggered[npc.Name].Add(fishId);
+            displayData.NPCDialogueTriggered[npc.Name].Add(fishId);
+            _originalDialogues[(player.UniqueMultiplayerID, npc.Name)] = npc.CurrentDialogue?.ToArray() ?? Array.Empty<Dialogue>();
 
             return dialogue;
+        }
+
+        private static void RestoreOriginalDialogue(NPC npc, Farmer player)
+        {
+            if (npc == null || player == null ||
+                !_originalDialogues.TryGetValue((player.UniqueMultiplayerID, npc.Name), out Dialogue[] original))
+                return;
+
+            npc.CurrentDialogue.Clear();
+            for (int i = original.Length - 1; i >= 0; i--)
+                npc.CurrentDialogue.Push(original[i]);
+            _originalDialogues.Remove((player.UniqueMultiplayerID, npc.Name));
+        }
+
+        private static void ClearDialogueSnapshots(Farmer player)
+        {
+            if (player == null)
+                return;
+
+            foreach (var key in _originalDialogues.Keys.Where(key => key.playerId == player.UniqueMultiplayerID).ToList())
+                _originalDialogues.Remove(key);
         }
 
         private static bool IsFish(string fishId)

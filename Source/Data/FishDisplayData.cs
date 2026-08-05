@@ -2,7 +2,7 @@ using System.Collections.Generic;
 
 namespace FishingExpanded.Data
 {
-    /// <summary>超大鱼展示数据</summary>
+    /// <summary>单个玩家的超大鱼展示数据</summary>
     public class FishDisplayData
     {
         /// <summary>当前举起的超大鱼信息（鱼ID -> (倍数, fishSize)）</summary>
