@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using StardewValley;
 using StardewValley.ItemTypeDefinitions;
 using FishingExpanded.Utils;
@@ -80,6 +81,60 @@ namespace FishingExpanded.Services
                 $"[HUDNotifier] 成功提示显示 | 鱼: {fishName} ({fishId}) | " +
                 $"等级: {newLevel} | 封顶: {newLevel >= maxLevel} | 非鱼类: {isNonFish}",
                 StardewModdingAPI.LogLevel.Debug);
+        }
+
+        /// <summary>显示已有图鉴星标鱼进入小游戏时的挑战宣言。</summary>
+        public static void ShowStarChallengeNotification(string fishId, int difficultyLevel)
+        {
+            if (Utils.SpecialFishHelper.IsLegendaryFish(fishId) ||
+                !DifficultyManager.HasCollectionStar(fishId))
+            {
+                return;
+            }
+
+            string fishName = GetFishDisplayName(Utils.SpecialFishHelper.NormalizeItemId(fishId));
+            string message = ChallengeDialogueGenerator.Generate(fishName, difficultyLevel);
+            Game1.addHUDMessage(new HUDMessage(message, HUDMessage.newQuest_type));
+
+            ModEntry.ModMonitor.Log(
+                $"[HUDNotifier] 星标鱼挑战宣言 | 鱼: {fishName} ({fishId}) | 等级: {difficultyLevel} | 文案: {message}",
+                StardewModdingAPI.LogLevel.Debug);
+        }
+
+        /// <summary>显示小游戏出现时的钓鱼等级建议。</summary>
+        public static void ShowDifficultyRecommendation(int difficultyLevel, Farmer player)
+        {
+            try
+            {
+                if (player == null || difficultyLevel <= 0)
+                    return;
+
+                float recommendedLevel = difficultyLevel / 10f;
+                int fishingLevel = player.FishingLevel;
+                if (recommendedLevel <= fishingLevel)
+                    return;
+
+                string recommendedLevelText = recommendedLevel.ToString("0.##", CultureInfo.InvariantCulture);
+                string message = ModEntry.ModHelper.Translation.Get(
+                    "hud.challenge.recommendation",
+                    new { recommendedLevel = recommendedLevelText });
+
+                if (recommendedLevel > fishingLevel * 2f)
+                {
+                    message = ModEntry.ModHelper.Translation.Get("hud.challenge.impossible") + message;
+                }
+
+                Game1.addHUDMessage(new HUDMessage(message, HUDMessage.error_type));
+                ModEntry.ModMonitor.Log(
+                    $"[HUDNotifier] 钓鱼等级建议 | 玩家: {player.UniqueMultiplayerID} | " +
+                    $"鱼等级: {difficultyLevel} | 建议等级: {recommendedLevelText} | 当前钓鱼等级: {fishingLevel} | " +
+                    $"不可能挑战: {recommendedLevel > fishingLevel * 2f}",
+                    StardewModdingAPI.LogLevel.Debug);
+            }
+            catch (Exception ex)
+            {
+                ModEntry.ModMonitor.Log($"钓鱼等级建议提示失败: {ex}", StardewModdingAPI.LogLevel.Error);
+            }
         }
 
         /// <summary>BATCH-013: 显示钓鱼失败提示（支持触底检测）</summary>

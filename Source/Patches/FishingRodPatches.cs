@@ -14,9 +14,26 @@ namespace FishingExpanded.Patches
     [HarmonyPatch(typeof(FishingRod))]
     internal class FishingRodPatches
     {
-        // BATCH-009: 保存原始数量，不修改动画（internal供FarmerFishingPatches访问）
-        internal static Dictionary<string, (int originalNum, int multiplier, int missCount)> _pendingFish =
-            new Dictionary<string, (int, int, int)>();
+        /// <summary>一次本地鱼获从小游戏成功到物品创建的事实</summary>
+        internal sealed class PendingFishData
+        {
+            public int OriginalNum { get; set; }
+            public int Multiplier { get; set; }
+            public int DifficultyLevel { get; set; }
+            public int ExperienceMultiplier { get; set; }
+            public int MissCount { get; set; }
+            public float AdjustedDifficulty { get; set; }
+            public int FishSize { get; set; }
+            public bool SuccessRecorded { get; set; }
+            public bool ExperienceAdjusted { get; set; }
+            public int CreateFishCalls { get; set; }
+            public bool AllowAdditionalCreateFish { get; set; }
+            public Item PendingOverflowItem { get; set; }
+        }
+
+        // BATCH-009: 以玩家+鱼ID隔离待处理事实，不修改原生动画参数
+        internal static readonly Dictionary<string, PendingFishData> _pendingFish =
+            new Dictionary<string, PendingFishData>();
 
         /// <summary>BATCH-009/014: pullFishFromWater Prefix - 只记录数据，不修改numCaught（鱼王豁免）</summary>
         [HarmonyPatch(nameof(FishingRod.pullFishFromWater))]
@@ -24,15 +41,24 @@ namespace FishingExpanded.Patches
         public static void PullFishFromWater_Prefix(
             FishingRod __instance,
             string fishId,
-            int numCaught)
+            int fishSize,
+            int fishDifficulty,
+            int numCaught,
+            bool fromFishPond)
         {
             try
             {
+                Farmer owner = __instance.getLastFarmerToUse();
+                if (owner == null || !owner.IsLocalPlayer || fromFishPond)
+                    return;
+
+                string normalizedFishId = Utils.SpecialFishHelper.NormalizeItemId(fishId);
+
                 // BATCH-014: 鱼王类豁免所有规则
-                if (Utils.SpecialFishHelper.IsLegendaryFish(fishId))
+                if (Utils.SpecialFishHelper.IsLegendaryFish(normalizedFishId))
                 {
                     ModEntry.ModMonitor.Log(
-                        $"[FishingRod] 传奇鱼（鱼王）豁免规则 | 鱼ID: {fishId}",
+                        $"[FishingRod] 传奇鱼（鱼王）豁免规则 | 鱼ID: {normalizedFishId}",
                         LogLevel.Info);
 
                     // 显示鱼王提示
@@ -40,36 +66,303 @@ namespace FishingExpanded.Patches
                     return;
                 }
 
-                int difficultyLevel = DifficultyManager.GetDifficultyLevel(fishId);
+                int difficultyLevel = DifficultyManager.GetDifficultyLevel(normalizedFishId);
                 int quantityMultiplier = DifficultyCalculator.GetQuantityMultiplier(difficultyLevel);
 
                 // BATCH-010: 获取脱杆次数
                 int missCount = 0;
-                if (__instance.isFishing && Game1.activeClickableMenu is StardewValley.Menus.BobberBar bobberBar)
+                float adjustedDifficulty = fishDifficulty;
+                if (Game1.activeClickableMenu is StardewValley.Menus.BobberBar bobberBar)
                 {
                     missCount = BobberBarPatches.GetMissCount(bobberBar);
+                    float trackedDifficulty = BobberBarPatches.GetAdjustedDifficulty(bobberBar);
+                    if (trackedDifficulty > 0f)
+                        adjustedDifficulty = trackedDifficulty;
                 }
 
                 // 保存数据供Postfix使用
-                _pendingFish[fishId] = (numCaught, quantityMultiplier, missCount);
+                _pendingFish[GetPendingKey(owner, normalizedFishId)] = new PendingFishData
+                {
+                    OriginalNum = numCaught,
+                    Multiplier = quantityMultiplier,
+                    DifficultyLevel = difficultyLevel,
+                    ExperienceMultiplier = DifficultyCalculator.GetExperienceMultiplier(difficultyLevel),
+                    MissCount = missCount,
+                    AdjustedDifficulty = adjustedDifficulty,
+                    // 使用原生成功调用最终传入的尺寸；鱼在小游戏中逃跑时尺寸可能已经下降。
+                    FishSize = fishSize
+                };
 
                 ModEntry.ModMonitor.Log(
-                    $"[FishingRod] 钓鱼成功（动画阶段）| 鱼ID: {fishId} | " +
+                    $"[FishingRod] 钓鱼成功（动画阶段）| 玩家: {owner.UniqueMultiplayerID} | 鱼ID: {normalizedFishId} | " +
                     $"难度等级: {difficultyLevel} | 数量倍数: {quantityMultiplier} | " +
                     $"脱杆次数: {missCount} | 动画显示: {numCaught}条",
                     LogLevel.Info);
-
-                // 记录超大鱼（用于视觉缩放和NPC反应）
-                if (quantityMultiplier > 15)
-                {
-                    int finalSize = numCaught * quantityMultiplier;
-                    GiantFishManager.RecordGiantFish(fishId, quantityMultiplier, finalSize);
-                }
             }
             catch (Exception ex)
             {
                 ModEntry.ModMonitor.Log($"pullFishFromWater Prefix 失败: {ex}", LogLevel.Error);
             }
+        }
+
+        /// <summary>在原生 CreateFish 返回物品时转换数量，覆盖背包和 ItemGrabMenu 两条原生路径</summary>
+        [HarmonyPatch("CreateFish")]
+        [HarmonyPostfix]
+        public static void CreateFish_Postfix(FishingRod __instance, ref Item __result)
+        {
+            try
+            {
+                Farmer owner = __instance.getLastFarmerToUse();
+                if (owner == null || !owner.IsLocalPlayer || __result == null)
+                    return;
+
+                string normalizedFishId = Utils.SpecialFishHelper.NormalizeItemId(__result.QualifiedItemId);
+                string key = GetPendingKey(owner, normalizedFishId);
+                if (!_pendingFish.TryGetValue(key, out var data))
+                    return;
+
+                bool isFinalFish = data.CreateFishCalls == 0 || data.AllowAdditionalCreateFish;
+                data.CreateFishCalls++;
+                data.AllowAdditionalCreateFish = false;
+                if (!isFinalFish)
+                    return;
+
+                if (data.Multiplier > 1)
+                {
+                    int nativeStack = Math.Max(1, __result.Stack);
+                    long finalStack = (long)nativeStack * data.Multiplier;
+                    __result.Stack = (int)Math.Min(int.MaxValue, finalStack);
+                    ModEntry.ModMonitor.Log(
+                        $"[FishingRod] 数量转化完成 | 玩家: {owner.UniqueMultiplayerID} | 鱼ID: {normalizedFishId} | " +
+                        $"原生堆叠: {nativeStack} → 最终: {__result.Stack} (×{data.Multiplier})",
+                        LogLevel.Info);
+                }
+
+            }
+            catch (Exception ex)
+            {
+                ModEntry.ModMonitor.Log($"FishingRod.CreateFish Postfix 失败: {ex}", LogLevel.Error);
+            }
+        }
+
+        internal static bool TryGetPending(Farmer owner, string fishId, out PendingFishData data)
+        {
+            return _pendingFish.TryGetValue(GetPendingKey(owner, fishId), out data);
+        }
+
+        /// <summary>
+        /// 开始一次本地钓鱼经验结算。经验写入发生在 NetEventBinary.Poll 阶段，
+        /// 此时 BobberBar 已经退出，所以不能依赖 Game1.activeClickableMenu 查找难度。
+        /// </summary>
+        internal static bool TryBeginExperienceAdjustment(Farmer owner, out PendingFishData data)
+        {
+            data = null;
+            if (owner == null)
+                return false;
+
+            string prefix = owner.UniqueMultiplayerID + ":";
+            foreach (var entry in _pendingFish)
+            {
+                if (!entry.Key.StartsWith(prefix, StringComparison.Ordinal) || entry.Value.ExperienceAdjusted)
+                    continue;
+
+                entry.Value.ExperienceAdjusted = true;
+                data = entry.Value;
+                return true;
+            }
+
+            return false;
+        }
+
+        internal static void ClearPending()
+        {
+            _pendingFish.Clear();
+        }
+
+        private static void ClearPending(FishingRod rod)
+        {
+            Farmer owner = rod.getLastFarmerToUse();
+            string fishId = rod.whichFish?.QualifiedItemId;
+            if (owner == null || string.IsNullOrEmpty(fishId))
+                return;
+
+            _pendingFish.Remove(GetPendingKey(owner, fishId));
+        }
+
+        private static void PrepareAdditionalFishCreation(FishingRod rod, int remainingFish)
+        {
+            Farmer owner = rod.getLastFarmerToUse();
+            string fishId = rod.whichFish?.QualifiedItemId;
+            if (owner == null || string.IsNullOrEmpty(fishId) ||
+                !_pendingFish.TryGetValue(GetPendingKey(owner, fishId), out var data))
+            {
+                return;
+            }
+
+            // 原生在 remainingFish == 1 时才会再次创建最终鱼获；其余 CreateFish 调用
+            // 可能只是鱼卵等奖励的临时取样，不应重复应用数量倍数。
+            data.AllowAdditionalCreateFish = remainingFish == 1;
+        }
+
+        internal static bool TryTrackPendingOverflow(Farmer owner, Item item)
+        {
+            if (owner == null || item == null || item.Stack <= 0 || owner.Items.Contains(item))
+                return false;
+
+            string fishId = Utils.SpecialFishHelper.NormalizeItemId(item.QualifiedItemId);
+            if (!_pendingFish.TryGetValue(GetPendingKey(owner, fishId), out var data))
+                return false;
+
+            data.PendingOverflowItem = item;
+            return true;
+        }
+
+        internal static bool TryTakePendingOverflow(
+            FishingRod rod,
+            out Item item,
+            out PendingFishData data)
+        {
+            item = null;
+            data = null;
+            Farmer owner = rod.getLastFarmerToUse();
+            string fishId = rod.whichFish?.QualifiedItemId;
+            if (owner == null || string.IsNullOrEmpty(fishId) ||
+                !_pendingFish.TryGetValue(GetPendingKey(owner, fishId), out data) ||
+                data.PendingOverflowItem == null || data.PendingOverflowItem.Stack <= 0)
+            {
+                return false;
+            }
+
+            item = data.PendingOverflowItem;
+            return true;
+        }
+
+        private static void ClearPendingOverflow(PendingFishData data)
+        {
+            if (data != null)
+                data.PendingOverflowItem = null;
+        }
+
+        private static void AddPendingOverflowToMenu(
+            FishingRod rod,
+            int remainingFish)
+        {
+            if (!TryTakePendingOverflow(rod, out Item item, out PendingFishData data))
+                return;
+
+            // 当原生 remainingFish == 1 时，原生已经重新创建并放入一条鱼，
+            // 所以只清掉旧引用，避免把同一份溢出鱼获重复加入菜单。
+            if (remainingFish == 1)
+            {
+                ClearPendingOverflow(data);
+                return;
+            }
+
+            if (StardewValley.Game1.activeClickableMenu is StardewValley.Menus.ItemGrabMenu menu)
+            {
+                if (!menu.ItemsToGrabMenu.actualInventory.Contains(item))
+                    menu.ItemsToGrabMenu.actualInventory.Add(item);
+                ClearPendingOverflow(data);
+                return;
+            }
+
+            var fallbackMenu = new StardewValley.Menus.ItemGrabMenu(
+                new List<Item> { item }, rod).setEssential(essential: true);
+            fallbackMenu.source = 3;
+            StardewValley.Game1.activeClickableMenu = fallbackMenu;
+            ClearPendingOverflow(data);
+        }
+
+        /// <summary>普通钓鱼只有一次 CreateFish；宝箱和 Trout Derby 需保留到原生后续回调。</summary>
+        [HarmonyPatch(nameof(FishingRod.doneHoldingFish))]
+        [HarmonyPostfix]
+        public static void DoneHoldingFish_Postfix(
+            FishingRod __instance,
+            bool ___treasureCaught,
+            bool ___gotTroutDerbyTag)
+        {
+            try
+            {
+                if (!___treasureCaught && !___gotTroutDerbyTag)
+                    ClearPending(__instance);
+            }
+            catch (Exception ex)
+            {
+                ModEntry.ModMonitor.Log($"FishingRod.doneHoldingFish Postfix 失败: {ex}", LogLevel.Error);
+            }
+        }
+
+        /// <summary>清理宝箱分支可能延迟创建的溢出鱼获后，结束本次待处理事实。</summary>
+        [HarmonyPatch(nameof(FishingRod.openTreasureMenuEndFunction))]
+        [HarmonyPrefix]
+        public static void OpenTreasureMenuEndFunction_Prefix(
+            FishingRod __instance,
+            int remainingFish)
+        {
+            try
+            {
+                PrepareAdditionalFishCreation(__instance, remainingFish);
+            }
+            catch (Exception ex)
+            {
+                ModEntry.ModMonitor.Log($"FishingRod.openTreasureMenuEndFunction Prefix 失败: {ex}", LogLevel.Error);
+            }
+        }
+
+        [HarmonyPatch(nameof(FishingRod.openTreasureMenuEndFunction))]
+        [HarmonyPostfix]
+        public static void OpenTreasureMenuEndFunction_Postfix(
+            FishingRod __instance,
+            int remainingFish)
+        {
+            try
+            {
+                AddPendingOverflowToMenu(__instance, remainingFish);
+                ClearPending(__instance);
+            }
+            catch (Exception ex)
+            {
+                ModEntry.ModMonitor.Log($"FishingRod.openTreasureMenuEndFunction Postfix 失败: {ex}", LogLevel.Error);
+            }
+        }
+
+        /// <summary>清理 Trout Derby 分支最后一次原生 CreateFish 后的待处理事实。</summary>
+        [HarmonyPatch(nameof(FishingRod.justGotDerbyTagEndFunction))]
+        [HarmonyPrefix]
+        public static void JustGotDerbyTagEndFunction_Prefix(
+            FishingRod __instance,
+            int remainingFish)
+        {
+            try
+            {
+                PrepareAdditionalFishCreation(__instance, remainingFish);
+            }
+            catch (Exception ex)
+            {
+                ModEntry.ModMonitor.Log($"FishingRod.justGotDerbyTagEndFunction Prefix 失败: {ex}", LogLevel.Error);
+            }
+        }
+
+        [HarmonyPatch(nameof(FishingRod.justGotDerbyTagEndFunction))]
+        [HarmonyPostfix]
+        public static void JustGotDerbyTagEndFunction_Postfix(
+            FishingRod __instance,
+            int remainingFish)
+        {
+            try
+            {
+                AddPendingOverflowToMenu(__instance, remainingFish);
+                ClearPending(__instance);
+            }
+            catch (Exception ex)
+            {
+                ModEntry.ModMonitor.Log($"FishingRod.justGotDerbyTagEndFunction Postfix 失败: {ex}", LogLevel.Error);
+            }
+        }
+
+        private static string GetPendingKey(Farmer owner, string fishId)
+        {
+            return $"{owner.UniqueMultiplayerID}:{Utils.SpecialFishHelper.NormalizeItemId(fishId)}";
         }
     }
 
@@ -77,6 +370,53 @@ namespace FishingExpanded.Patches
     [HarmonyPatch(typeof(Farmer))]
     internal class FarmerFishingPatches
     {
+        /// <summary>
+        /// 原生 addItemToInventoryBool 允许“部分加入”并返回 true，但普通钓鱼流程
+        /// 只在返回 false 时打开 ItemGrabMenu；高倍鱼的剩余堆叠必须在这里补入原生菜单。
+        /// </summary>
+        [HarmonyPatch(nameof(Farmer.addItemToInventoryBool))]
+        [HarmonyPostfix]
+        public static void AddItemToInventoryBool_Postfix(
+            Farmer __instance,
+            Item item,
+            bool __result)
+        {
+            try
+            {
+                if (!__instance.IsLocalPlayer || item == null || item.Stack <= 0 ||
+                    __instance.Items.Contains(item))
+                {
+                    return;
+                }
+
+                string fishId = Utils.SpecialFishHelper.NormalizeItemId(item.QualifiedItemId);
+                if (!FishingRodPatches.TryGetPending(__instance, fishId, out var data))
+                    return;
+
+                FishingRod rod = __instance.CurrentTool as FishingRod;
+                bool deferToFishingRewardMenu = rod != null &&
+                    (rod.treasureCaught || rod.gotTroutDerbyTag);
+                if (deferToFishingRewardMenu)
+                {
+                    FishingRodPatches.TryTrackPendingOverflow(__instance, item);
+                    return;
+                }
+
+                // 返回 false 时原生 doneHoldingFish 会负责打开菜单；这里只补“部分加入但
+                // 返回 true”的剩余堆叠，避免重复打开两个菜单。
+                if (!__result)
+                    return;
+
+                var menu = new StardewValley.Menus.ItemGrabMenu(
+                    new List<Item> { item }, rod).setEssential(essential: true);
+                StardewValley.Game1.activeClickableMenu = menu;
+            }
+            catch (Exception ex)
+            {
+                ModEntry.ModMonitor.Log($"Farmer.addItemToInventoryBool Postfix 失败: {ex}", LogLevel.Error);
+            }
+        }
+
         /// <summary>BATCH-009: caughtFish Postfix - 修改进入背包的数量</summary>
         [HarmonyPatch(nameof(Farmer.caughtFish))]
         [HarmonyPostfix]
@@ -90,62 +430,17 @@ namespace FishingExpanded.Patches
             try
             {
                 // 只处理正常钓鱼（非鱼塘）
-                if (from_fish_pond)
+                if (from_fish_pond || !__instance.IsLocalPlayer)
                     return;
 
-                // BATCH-021: 修复ID格式不匹配问题
-                // pullFishFromWater传入"144"，但caughtFish接收"(O)144"
-                // 需要同时尝试两种格式
-                string fishId = itemId;
-                if (!FishingRodPatches._pendingFish.TryGetValue(fishId, out var data))
-                {
-                    // 尝试去掉 (O) 前缀
-                    string unqualifiedId = itemId.Replace("(O)", "");
-                    if (!FishingRodPatches._pendingFish.TryGetValue(unqualifiedId, out data))
-                    {
-                        ModEntry.ModMonitor.Log(
-                            $"[Farmer] 未找到待处理数据 | itemId: {itemId} | 已尝试: {fishId}, {unqualifiedId} | " +
-                            $"字典中的键: {string.Join(", ", FishingRodPatches._pendingFish.Keys)}",
-                            LogLevel.Debug);
-                        return;
-                    }
-                    fishId = unqualifiedId; // 使用找到的键
-                }
+                string fishId = Utils.SpecialFishHelper.NormalizeItemId(itemId);
+                if (!FishingRodPatches.TryGetPending(__instance, fishId, out var data) || data.SuccessRecorded)
+                    return;
 
-                int originalNum = data.originalNum;
-                int multiplier = data.multiplier;
-                int missCount = data.missCount;
+                data.SuccessRecorded = true;
 
-                // 清除已处理的数据
-                FishingRodPatches._pendingFish.Remove(fishId);
-
-                // BATCH-009: 如果倍数>1，修改背包中的数量
-                if (multiplier > 1)
-                {
-                    StardewValley.Object fishItem = null;
-                    for (int i = __instance.Items.Count - 1; i >= 0; i--)
-                    {
-                        if (__instance.Items[i] is StardewValley.Object obj &&
-                            obj.QualifiedItemId == itemId &&
-                            obj.Stack == originalNum)
-                        {
-                            fishItem = obj;
-                            break;
-                        }
-                    }
-
-                    if (fishItem != null)
-                    {
-                        fishItem.Stack = originalNum * multiplier;
-                        ModEntry.ModMonitor.Log(
-                            $"[Farmer] 数量转化完成 | 鱼ID: {fishId} | " +
-                            $"原始: {originalNum} → 最终: {fishItem.Stack} (×{multiplier})",
-                            LogLevel.Info);
-                    }
-                }
-
-                // BATCH-010: 根据脱杆次数记录等级增长（必须始终执行）
-                int baseLevelGain = missCount switch
+                // BATCH-010: 根据脱杆次数记录原始等级增长（区间限制由 DifficultyManager 统一执行）
+                int baseLevelGain = data.MissCount switch
                 {
                     0 => 10,  // 完美
                     1 => 5,
@@ -154,29 +449,23 @@ namespace FishingExpanded.Patches
                 };
 
                 int oldLevel = DifficultyManager.GetDifficultyLevel(fishId);
-
-                // BATCH-023: 越级限制 - 一次最多只能晋升到下一个称号区间的上限
-                int theoreticalNewLevel = oldLevel + baseLevelGain;
-                int nextRankCeiling = DifficultyCalculator.GetNextRankCeiling(oldLevel);
-                int actualNewLevel = Math.Min(theoreticalNewLevel, nextRankCeiling);
-                int actualLevelGain = actualNewLevel - oldLevel;
-
-                // 如果被越级限制钳制，记录日志
-                if (actualLevelGain < baseLevelGain)
-                {
-                    ModEntry.ModMonitor.Log(
-                        $"[Farmer] 越级限制生效 | 鱼ID: {fishId} | " +
-                        $"原始增长: +{baseLevelGain} | 实际增长: +{actualLevelGain} | " +
-                        $"下一称号上限: {nextRankCeiling}",
-                        LogLevel.Info);
-                }
-
-                DifficultyManager.RecordSuccess(fishId, actualLevelGain);
+                int actualLevelGain = DifficultyManager.RecordSuccess(fishId, baseLevelGain);
                 int newLevel = DifficultyManager.GetDifficultyLevel(fishId);
+
+                // 高难度星标必须在成功钓起后才写入；鱼王没有待处理数据，不会进入这里。
+                DifficultyManager.RecordHighDifficulty(fishId, data.AdjustedDifficulty);
+
+                if (data.Multiplier > 15)
+                {
+                    int fishSize = data.FishSize > 0
+                        ? data.FishSize
+                        : Math.Max(1, data.OriginalNum) * data.Multiplier;
+                    GiantFishManager.RecordGiantFish(fishId, data.Multiplier, fishSize);
+                }
 
                 ModEntry.ModMonitor.Log(
                     $"[Farmer] 难度等级更新 | 鱼ID: {fishId} | " +
-                    $"脱杆: {missCount}次 | 基础增长: +{baseLevelGain} | 实际增长: +{actualLevelGain} | {oldLevel} → {newLevel}",
+                    $"脱杆: {data.MissCount}次 | 基础增长: +{baseLevelGain} | 实际增长: +{actualLevelGain} | {oldLevel} → {newLevel}",
                     LogLevel.Info);
 
                 // BATCH-012/022: 显示成功HUD提示（封顶检测，传入旧等级）

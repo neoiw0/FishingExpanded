@@ -2,6 +2,7 @@ using System;
 using HarmonyLib;
 using StardewValley;
 using FishingExpanded.Services;
+using FishingExpanded.Utils;
 using StardewModdingAPI;
 
 namespace FishingExpanded.Patches
@@ -10,6 +11,9 @@ namespace FishingExpanded.Patches
     [HarmonyPatch(typeof(Farmer))]
     internal class FarmerFishingLevelPatches
     {
+        /// <summary>由 BobberBar 构造边界设置，仅覆盖鱼王的原生等级读取。</summary>
+        internal static bool SuppressHiddenBonusForLegendaryBobber { get; set; }
+
         // 缓存上次记录的加成值，避免高频日志
         private static float _lastLoggedBonus = -1f;
 
@@ -21,7 +25,7 @@ namespace FishingExpanded.Patches
             try
             {
                 // 只对当前玩家应用加成
-                if (__instance != Game1.player) return;
+                if (__instance != Game1.player || SuppressHiddenBonusForLegendaryBobber) return;
 
                 float bonus = DifficultyManager.GetFishingLevelBonus();
 
@@ -47,6 +51,39 @@ namespace FishingExpanded.Patches
             catch (Exception ex)
             {
                 ModEntry.ModMonitor.Log($"FishingLevel Getter Patch 失败: {ex}", LogLevel.Error);
+            }
+        }
+
+        /// <summary>在原生钓鱼经验写入前应用当前难度等级的经验倍率。</summary>
+        [HarmonyPatch(nameof(Farmer.gainExperience))]
+        [HarmonyPrefix]
+        public static void GainExperience_Prefix(
+            Farmer __instance,
+            int which,
+            ref int howMuch)
+        {
+            try
+            {
+                if (which != 1 || howMuch <= 0 || !__instance.IsLocalPlayer ||
+                    !FishingRodPatches.TryBeginExperienceAdjustment(__instance, out var pendingFish))
+                {
+                    return;
+                }
+
+                int multiplier = pendingFish.ExperienceMultiplier;
+                if (multiplier <= 1)
+                    return;
+
+                long adjustedExperience = (long)howMuch * multiplier;
+                howMuch = (int)Math.Min(int.MaxValue, adjustedExperience);
+                ModEntry.ModMonitor.Log(
+                    $"[FarmerFishingExperience] 经验倍率 | 难度等级: {pendingFish.DifficultyLevel} | " +
+                    $"倍率: ×{multiplier} | 经验: {adjustedExperience / multiplier} → {howMuch}",
+                    LogLevel.Debug);
+            }
+            catch (Exception ex)
+            {
+                ModEntry.ModMonitor.Log($"Fishing experience patch 失败: {ex}", LogLevel.Error);
             }
         }
     }

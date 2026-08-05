@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace FishingExpanded.Utils
@@ -6,13 +7,13 @@ namespace FishingExpanded.Utils
     public static class SpecialFishHelper
     {
         /// <summary>五大传奇鱼ID（不含扩展传奇鱼）</summary>
-        private static readonly HashSet<string> LegendaryFishIds = new HashSet<string>
+        private static readonly HashSet<string> LegendaryFishIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            "(o)163", // 传奇鱼 Legend
-            "(o)682", // 突变鲤鱼 Mutant Carp
-            "(o)160", // 鮟鱇鱼 Angler
-            "(o)775", // 冰川鱼 Glacierfish
-            "(o)159"  // 赤红鱼 Crimsonfish
+            "(O)163", // 传奇鱼 Legend
+            "(O)682", // 突变鲤鱼 Mutant Carp
+            "(O)160", // 鮟鱇鱼 Angler
+            "(O)775", // 冰川鱼 Glacierfish
+            "(O)159"  // 赤红鱼 Crimsonfish
         };
 
         /// <summary>传奇鱼提示文案（随机选择）</summary>
@@ -33,7 +34,27 @@ namespace FishingExpanded.Utils
         /// <summary>检查是否为传奇鱼（鱼王）</summary>
         public static bool IsLegendaryFish(string fishId)
         {
-            return LegendaryFishIds.Contains(fishId);
+            return LegendaryFishIds.Contains(NormalizeItemId(fishId));
+        }
+
+        /// <summary>
+        /// 统一原生物品 ID 格式。钓鱼原生入口可能传入未限定 ID（如 163）、
+        /// 大写限定 ID（如 (O)163）或历史代码中的小写限定 ID（如 (o)163）。
+        /// </summary>
+        public static string NormalizeItemId(string itemId)
+        {
+            if (string.IsNullOrWhiteSpace(itemId))
+                return itemId;
+
+            itemId = itemId.Trim();
+
+            if (itemId.StartsWith("(o)", StringComparison.OrdinalIgnoreCase))
+                return "(O)" + itemId.Substring(3);
+
+            if (itemId.StartsWith("("))
+                return itemId;
+
+            return "(O)" + itemId;
         }
 
         /// <summary>检查是否为非鱼类（垃圾/藻类等）</summary>

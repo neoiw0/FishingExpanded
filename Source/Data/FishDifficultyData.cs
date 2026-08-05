@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace FishingExpanded.Data
 {
-    /// <summary>存档数据：每种鱼的难度等级统计</summary>
+    /// <summary>当前玩家的鱼难度、收藏星标和隐藏钓鱼等级加成</summary>
     public class FishDifficultyData
     {
         /// <summary>鱼的统计数据字典，键为鱼的QualifiedItemId</summary>

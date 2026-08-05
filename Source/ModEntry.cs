@@ -40,6 +40,7 @@ namespace FishingExpanded
                 // 注册事件监听器
                 helper.Events.GameLoop.SaveLoaded += OnSaveLoaded;
                 helper.Events.GameLoop.Saving += OnSaving;
+                helper.Events.GameLoop.ReturnedToTitle += OnReturnedToTitle;
                 helper.Events.GameLoop.DayStarted += OnDayStarted;
                 helper.Events.GameLoop.UpdateTicked += OnUpdateTicked;
                 helper.Events.Player.Warped += OnWarped;
@@ -59,6 +60,7 @@ namespace FishingExpanded
         private void OnSaveLoaded(object sender, SaveLoadedEventArgs e)
         {
             DifficultyManager.Initialize();
+            GiantFishManager.ResetForSave();
             Monitor.Log("=== FishingExpanded 存档加载完成 ===", LogLevel.Info);
         }
 
@@ -67,6 +69,15 @@ namespace FishingExpanded
         {
             DifficultyManager.SaveData();
             Monitor.Log("已保存钓鱼难度数据", LogLevel.Debug);
+        }
+
+        /// <summary>返回标题时清除当前玩家缓存，避免联机换存档串写</summary>
+        private void OnReturnedToTitle(object sender, ReturnedToTitleEventArgs e)
+        {
+            DifficultyManager.UnloadData();
+            Patches.FishingRodPatches.ClearPending();
+            GiantFishManager.ResetForSave();
+            Monitor.Log("已清除 FishingExpanded 当前玩家缓存", LogLevel.Debug);
         }
 
         /// <summary>每日开始</summary>
@@ -339,16 +350,7 @@ namespace FishingExpanded
 
         private string GetRankName(int level)
         {
-            if (level < -8) return "额...稍微强一点的个体";
-            if (level < -5) return "精英";
-            if (level < -2) return "骑士";
-            if (level < 0) return "领主";
-            if (level < 10) return "伯爵";
-            if (level < 30) return "大公";
-            if (level < 50) return "亲王";
-            if (level < 70) return "帝王";
-            if (level < 90) return "神皇";
-            return "神王";
+            return ModHelper.Translation.Get(Utils.DifficultyCalculator.GetRankKey(level));
         }
 
         #endregion

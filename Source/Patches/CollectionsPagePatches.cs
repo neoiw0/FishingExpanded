@@ -1,5 +1,9 @@
 using System;
+using System.Collections.Generic;
 using HarmonyLib;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using StardewValley;
 using StardewValley.Menus;
 using FishingExpanded.Services;
 using FishingExpanded.Utils;
@@ -21,15 +25,15 @@ namespace FishingExpanded.Patches
         {
             try
             {
-                // 只处理鱼类tab（currentTab通常为4）
-                if (___currentTab != 4 || string.IsNullOrEmpty(id))
+                // 当前原生鱼类 tab 是1；不要使用旧版本的 cooking tab=4。
+                if (___currentTab != CollectionsPage.fishTab || string.IsNullOrEmpty(id))
                     return;
 
                 // BATCH-014: 鱼王豁免
                 if (SpecialFishHelper.IsLegendaryFish(id))
                     return;
 
-                string fishId = id.StartsWith("(") ? id : $"(O){id}";
+                string fishId = SpecialFishHelper.NormalizeItemId(id);
 
                 // 获取难度等级和称号
                 int level = DifficultyManager.GetDifficultyLevel(fishId);
@@ -39,20 +43,58 @@ namespace FishingExpanded.Patches
                 // 获取钓鱼技能加成
                 float fishingBonus = DifficultyManager.GetFishingLevelBonus();
 
-                // 追加自定义信息
-                __result += Environment.NewLine;
-                __result += $"挑战等级：{rankName}（等级{level}）";
+                var additions = new List<string>();
+                if (level > 0)
+                    additions.Add($"挑战等级：{rankName}（等级{level}）");
 
                 if (fishingBonus > 0)
-                {
-                    __result += $" | 钓鱼技能加成：+{fishingBonus:F1}";
-                }
+                    additions.Add($"钓鱼技能加成：+{fishingBonus:F1}");
+
+                if (additions.Count > 0)
+                    __result += Environment.NewLine + string.Join(" | ", additions);
             }
             catch (Exception ex)
             {
                 ModEntry.ModMonitor.Log(
                     $"[CollectionsPage] createDescription Postfix 失败: {ex}",
                     StardewModdingAPI.LogLevel.Error);
+            }
+        }
+
+        /// <summary>在已收藏鱼类图标左上角绘制星标。</summary>
+        [HarmonyPatch(nameof(CollectionsPage.draw))]
+        [HarmonyPostfix]
+        public static void Draw_Postfix(
+            SpriteBatch b,
+            int ___currentTab,
+            int ___currentPage,
+            Dictionary<int, List<List<ClickableTextureComponent>>> ___collections)
+        {
+            try
+            {
+                if (___currentTab != CollectionsPage.fishTab ||
+                    !___collections.TryGetValue(___currentTab, out var pages) ||
+                    ___currentPage < 0 || ___currentPage >= pages.Count)
+                {
+                    return;
+                }
+
+                foreach (ClickableTextureComponent item in pages[___currentPage])
+                {
+                    string[] parts = item.name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length == 0 || !DifficultyManager.HasCollectionStar(parts[0]))
+                        continue;
+
+                    b.Draw(
+                        Game1.mouseCursors,
+                        new Rectangle(item.bounds.X + 3, item.bounds.Y + 3, 20, 20),
+                        new Rectangle(346, 392, 8, 8),
+                        Color.Gold);
+                }
+            }
+            catch (Exception ex)
+            {
+                ModEntry.ModMonitor.Log($"[CollectionsPage] 星标绘制失败: {ex}", StardewModdingAPI.LogLevel.Error);
             }
         }
     }

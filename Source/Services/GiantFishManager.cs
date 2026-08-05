@@ -18,11 +18,12 @@ namespace FishingExpanded.Services
         /// <summary>记录刚钓到的超大鱼</summary>
         public static void RecordGiantFish(string fishId, int multiplier, int fishSize)
         {
-            if (multiplier > 15)
+            string normalizedFishId = SpecialFishHelper.NormalizeItemId(fishId);
+            if (multiplier > 15 && !SpecialFishHelper.IsLegendaryFish(normalizedFishId) && IsFish(normalizedFishId))
             {
-                _displayData.ActiveGiantFish[fishId] = (multiplier, fishSize);
+                _displayData.ActiveGiantFish[normalizedFishId] = (multiplier, fishSize);
                 ModEntry.ModMonitor.Log(
-                    $"[GiantFishManager] 超大鱼记录 | 鱼ID: {fishId} | " +
+                    $"[GiantFishManager] 超大鱼记录 | 鱼ID: {normalizedFishId} | " +
                     $"倍数: {multiplier} | fishSize: {fishSize} | " +
                     $"视觉缩放: ×{Math.Pow(multiplier, 1.0/3.0):F2}",
                     StardewModdingAPI.LogLevel.Info);
@@ -37,11 +38,11 @@ namespace FishingExpanded.Services
             // 性能优化：快速路径 - 没有激活的超大鱼时直接返回
             if (_displayData.ActiveGiantFish.Count == 0) return;
 
-            // 获取当前选中的物品
-            var currentItem = Game1.player.CurrentItem;
-            if (currentItem == null) return;
+            // 必须是真正举在手上的物品；仅切换到物品栏不触发巨型鱼效果。
+            var currentItem = Game1.player.ActiveObject;
+            if (currentItem == null || !Game1.player.IsCarrying()) return;
 
-            string fishId = currentItem.QualifiedItemId;
+            string fishId = SpecialFishHelper.NormalizeItemId(currentItem.QualifiedItemId);
 
             // 检查是否是激活的超大鱼
             if (!_displayData.ActiveGiantFish.TryGetValue(fishId, out var fishData)) return;
@@ -147,23 +148,29 @@ namespace FishingExpanded.Services
         {
             int bubbleCount = _displayData.NPCBubbleTriggered.Count;
             int dialogueCount = _displayData.NPCDialogueTriggered.Count;
-            int giantFishCount = _displayData.ActiveGiantFish.Count;
 
-            // Bug修复：每日开始时也清空超大鱼，防止内存无限增长
-            _displayData.ClearActiveGiantFish();
+            // 设计要求：巨型鱼只在进入 FarmHouse 后永久清除；每日只重置 NPC 当日触发次数。
             _displayData.ResetDailyTriggers();
             _lastLoggedNearbyCheck.Clear();
 
             ModEntry.ModMonitor.Log(
-                $"[GiantFishManager] 每日重置 | 清空超大鱼: {giantFishCount}种 | " +
+                $"[GiantFishManager] 每日重置 | 保留超大鱼: {_displayData.ActiveGiantFish.Count}种 | " +
                 $"清空冒泡记录: {bubbleCount}个NPC | 对话记录: {dialogueCount}个NPC",
                 StardewModdingAPI.LogLevel.Info);
+        }
+
+        /// <summary>切换存档或返回标题时清除运行时展示数据。</summary>
+        public static void ResetForSave()
+        {
+            _displayData = new FishDisplayData();
+            _lastLoggedNearbyCheck.Clear();
         }
 
         /// <summary>获取鱼的视觉缩放倍数</summary>
         public static float GetFishVisualScale(string fishId)
         {
-            if (_displayData.ActiveGiantFish.TryGetValue(fishId, out var fishData))
+            string normalizedFishId = SpecialFishHelper.NormalizeItemId(fishId);
+            if (_displayData.ActiveGiantFish.TryGetValue(normalizedFishId, out var fishData))
             {
                 return DifficultyCalculator.GetVisualScale(fishData.multiplier);
             }
@@ -173,9 +180,16 @@ namespace FishingExpanded.Services
         /// <summary>检查对话替换（主动对话NPC时调用）</summary>
         public static string TryGetReplacementDialogue(NPC npc)
         {
-            if (Game1.player?.CurrentItem == null) return null;
+            return TryGetReplacementDialogue(npc, Game1.player);
+        }
 
-            string fishId = Game1.player.CurrentItem.QualifiedItemId;
+        /// <summary>检查指定本地玩家是否触发巨型鱼主动对话替换。</summary>
+        public static string TryGetReplacementDialogue(NPC npc, Farmer player)
+        {
+            if (npc == null || player == null || !player.IsLocalPlayer ||
+                player.ActiveObject == null || !player.IsCarrying()) return null;
+
+            string fishId = SpecialFishHelper.NormalizeItemId(player.ActiveObject.QualifiedItemId);
 
             // 检查是否是激活的超大鱼
             if (!_displayData.ActiveGiantFish.TryGetValue(fishId, out var fishData)) return null;
@@ -197,6 +211,19 @@ namespace FishingExpanded.Services
             _displayData.NPCDialogueTriggered[npc.Name].Add(fishId);
 
             return dialogue;
+        }
+
+        private static bool IsFish(string fishId)
+        {
+            try
+            {
+                var itemData = ItemRegistry.GetDataOrErrorItem(fishId);
+                return itemData != null && itemData.Category == StardewValley.Object.FishCategory;
+            }
+            catch
+            {
+                return false;
+            }
         }
     }
 }

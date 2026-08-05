@@ -89,17 +89,7 @@ namespace FishingExpanded.Patches
                     return 1.0f;
 
                 string fishId = obj.QualifiedItemId;
-                float visualScale = GiantFishManager.GetFishVisualScale(fishId);
-
-                // 只记录首次或scale变化 >0.1 时
-                if (visualScale > 1.1f)
-                {
-                    ModEntry.ModMonitor.Log(
-                        $"[ObjectPatches] 应用视觉缩放 | 鱼ID: {fishId} | 缩放倍数: {visualScale:F2}x",
-                        LogLevel.Debug);
-                }
-
-                return visualScale;
+                return GiantFishManager.GetFishVisualScale(fishId);
             }
             catch (Exception ex)
             {
