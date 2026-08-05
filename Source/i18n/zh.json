@@ -1,0 +1,16 @@
+{
+  "hud.challenge.title": "下一次你将向{{fishName}}中的{{rank}}发起挑战",
+  "hud.fail.negative": "你对{{fishName}}的了解加深了",
+  "hud.fail.positive": "还是挑战{{fishName}}中更平庸的个体吧",
+
+  "rank.weak": "额...稍微强一点的个体",
+  "rank.elite": "精英",
+  "rank.knight": "骑士",
+  "rank.lord": "领主",
+  "rank.count": "伯爵",
+  "rank.duke": "大公",
+  "rank.prince": "亲王",
+  "rank.emperor": "帝王",
+  "rank.godking": "神皇",
+  "rank.divineking": "神王"
+}

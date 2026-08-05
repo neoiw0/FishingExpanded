@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<Version>0.1.0</Version>
+		<TargetFramework>net6.0</TargetFramework>
+		<LangVersion>latest</LangVersion>
+		<EnableHarmony>true</EnableHarmony>
+		<EnableModZip>false</EnableModZip>
+		<EnableModDeploy>false</EnableModDeploy>
+		<GamePath>D:\GGGGG\K1515</GamePath>
+	</PropertyGroup>
+	<ItemGroup>
+		<Compile Remove="releases\**" />
+		<EmbeddedResource Remove="releases\**" />
+		<None Remove="releases\**" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Pathoschild.Stardew.ModBuildConfig" Version="4.1.1" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Update="i18n\*.json">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="manifest.json">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
+
+</Project>

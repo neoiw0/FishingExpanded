@@ -1,0 +1,15 @@
+# Build output
+Source/bin/
+Source/obj/
+releases/
+
+# Local runtime, deployment and temporary evidence
+DeploymentBackups/
+RuntimeEvidence/
+临时/
+
+# Local tooling and user-specific files
+.vs/
+*.user
+*.suo
+.env

@@ -1,0 +1,16 @@
+{
+  "hud.challenge.title": "Next time you will challenge the {{rank}} among {{fishName}}",
+  "hud.fail.negative": "You've deepened your understanding of {{fishName}}",
+  "hud.fail.positive": "Better challenge a more mediocre {{fishName}} instead",
+
+  "rank.weak": "slightly stronger one",
+  "rank.elite": "Elite",
+  "rank.knight": "Knight",
+  "rank.lord": "Lord",
+  "rank.count": "Count",
+  "rank.duke": "Duke",
+  "rank.prince": "Prince",
+  "rank.emperor": "Emperor",
+  "rank.godking": "God Emperor",
+  "rank.divineking": "Divine King"
+}
