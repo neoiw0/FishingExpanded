@@ -36,19 +36,20 @@ namespace FishingExpanded.Patches
                 string fishId = SpecialFishHelper.NormalizeItemId(id);
 
                 // 获取难度等级和称号
-                int level = DifficultyManager.GetDifficultyLevel(fishId);
+                int level = DifficultyManager.GetDifficultyLevel(fishId, Game1.player);
                 string rankKey = DifficultyCalculator.GetRankKey(level);
                 string rankName = ModEntry.ModHelper.Translation.Get(rankKey);
 
-                // 获取钓鱼技能加成
-                float fishingBonus = DifficultyManager.GetFishingLevelBonus();
-
                 var additions = new List<string>();
                 if (level > 0)
-                    additions.Add($"挑战等级：{rankName}（等级{level}）");
+                    additions.Add(ModEntry.ModHelper.Translation.Get(
+                        "collections.challengeRank", new { rankName, level }));
 
-                if (fishingBonus > 0)
-                    additions.Add($"钓鱼技能加成：+{fishingBonus:F1}");
+                // BATCH-025: 加成按鱼种独立展示，只有该鱼已有收藏星标时才显示
+                // 本条鱼的 +0.5；不再把全局累计加成显示在每一条鱼上。
+                // 2026-08-06 用户确认措辞：钓鱼条长度额外加成。
+                if (DifficultyManager.HasCollectionStar(fishId, Game1.player))
+                    additions.Add(ModEntry.ModHelper.Translation.Get("collections.fishingBonus"));
 
                 if (additions.Count > 0)
                     __result += Environment.NewLine + string.Join(" | ", additions);
@@ -61,7 +62,16 @@ namespace FishingExpanded.Patches
             }
         }
 
-        /// <summary>在已收藏鱼类图标左上角绘制星标。</summary>
+        /// <summary>BATCH-029: 在已收藏鱼类图标左上角绘制皇冠（Characters\Farmer\hats 的 Infinity Crown，源矩形 (20,800,20,20)）。</summary>
+        private static Texture2D _crownTexture;
+
+        private static Texture2D GetCrownTexture()
+        {
+            if (_crownTexture == null || _crownTexture.IsDisposed)
+                _crownTexture = Game1.content.Load<Texture2D>("Characters\\Farmer\\hats");
+            return _crownTexture;
+        }
+
         [HarmonyPatch(nameof(CollectionsPage.draw))]
         [HarmonyPostfix]
         public static void Draw_Postfix(
@@ -79,22 +89,23 @@ namespace FishingExpanded.Patches
                     return;
                 }
 
+                Texture2D crownTexture = GetCrownTexture();
                 foreach (ClickableTextureComponent item in pages[___currentPage])
                 {
                     string[] parts = item.name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                    if (parts.Length == 0 || !DifficultyManager.HasCollectionStar(parts[0]))
+                    if (parts.Length == 0 || !DifficultyManager.HasCollectionStar(parts[0], Game1.player))
                         continue;
 
                     b.Draw(
-                        Game1.mouseCursors,
-                        new Rectangle(item.bounds.X + 3, item.bounds.Y + 3, 20, 20),
-                        new Rectangle(346, 392, 8, 8),
-                        Color.Gold);
+                        crownTexture,
+                        new Rectangle(item.bounds.X + 3, item.bounds.Y + 3, 24, 24),
+                        new Rectangle(20, 800, 20, 20),
+                        Color.White);
                 }
             }
             catch (Exception ex)
             {
-                ModEntry.ModMonitor.Log($"[CollectionsPage] 星标绘制失败: {ex}", StardewModdingAPI.LogLevel.Error);
+                ModEntry.ModMonitor.Log($"[CollectionsPage] 皇冠绘制失败: {ex}", StardewModdingAPI.LogLevel.Error);
             }
         }
     }

@@ -22,6 +22,7 @@ namespace FishingExpanded
         // 性能优化：使用计数器替代模运算
         private int _npcCheckCounter = 0;
         private int _cleanupCounter = 0;
+        private int _hudQueueCounter = 0; // BATCH-032: HUD 提示队列驱动计数器
 
         /// <summary>Mod入口点</summary>
         /// <param name="helper">SMAPI Helper</param>
@@ -59,15 +60,17 @@ namespace FishingExpanded
         /// <summary>存档加载后</summary>
         private void OnSaveLoaded(object sender, SaveLoadedEventArgs e)
         {
-            DifficultyManager.Initialize();
+            DifficultyManager.LoadData(Game1.player);
+            HUDNotifier.ClearPending(); // BATCH-032: 加载存档时清空瞬时提示队列
             GiantFishManager.ResetForSave();
+            Patches.ObjectPatches.ResetVisualDiagnostics();
             Monitor.Log("=== FishingExpanded 存档加载完成 ===", LogLevel.Info);
         }
 
         /// <summary>保存前</summary>
         private void OnSaving(object sender, SavingEventArgs e)
         {
-            DifficultyManager.SaveData();
+            DifficultyManager.SaveAll();
             Monitor.Log("已保存钓鱼难度数据", LogLevel.Debug);
         }
 
@@ -75,8 +78,10 @@ namespace FishingExpanded
         private void OnReturnedToTitle(object sender, ReturnedToTitleEventArgs e)
         {
             DifficultyManager.UnloadData();
+            HUDNotifier.ClearPending(); // BATCH-032: 返回标题清空瞬时提示队列
             Patches.FishingRodPatches.ClearPending();
             GiantFishManager.ResetForSave();
+            Patches.ObjectPatches.ResetVisualDiagnostics();
             Monitor.Log("已清除 FishingExpanded 当前玩家缓存", LogLevel.Debug);
         }
 
@@ -90,6 +95,14 @@ namespace FishingExpanded
         /// <summary>每帧更新（性能优化：使用计数器，增加检查间隔）</summary>
         private void OnUpdateTicked(object sender, UpdateTickedEventArgs e)
         {
+            // BATCH-032: 每 15 tick（约 0.25 秒）驱动 HUD 提示队列（前一条消失后显示下一条）
+            _hudQueueCounter++;
+            if (_hudQueueCounter >= 15)
+            {
+                _hudQueueCounter = 0;
+                HUDNotifier.ProcessQueue();
+            }
+
             // 性能优化：NPC检查从每30帧改为每60帧（从每秒2次降为1次）
             _npcCheckCounter++;
             if (_npcCheckCounter >= 60)
@@ -180,8 +193,8 @@ namespace FishingExpanded
                 return;
             }
 
-            DifficultyManager.SetDifficultyLevel(fishId, level);
-            int actualLevel = DifficultyManager.GetDifficultyLevel(fishId);
+            DifficultyManager.SetDifficultyLevel(fishId, level, Game1.player);
+            int actualLevel = DifficultyManager.GetDifficultyLevel(fishId, Game1.player);
             Monitor.Log($"✓ 已设置 {fishId} 的难度等级为 {actualLevel}", LogLevel.Info);
         }
 
@@ -202,10 +215,10 @@ namespace FishingExpanded
 
             for (int i = 0; i < count; i++)
             {
-                DifficultyManager.RecordSuccess(fishId);
+                DifficultyManager.RecordSuccess(fishId, 1, Game1.player);
             }
 
-            int level = DifficultyManager.GetDifficultyLevel(fishId);
+            int level = DifficultyManager.GetDifficultyLevel(fishId, Game1.player);
             Monitor.Log($"✓ 已为 {fishId} 增加 {count} 次成功，当前难度等级: {level}", LogLevel.Info);
         }
 
@@ -226,10 +239,10 @@ namespace FishingExpanded
 
             for (int i = 0; i < count; i++)
             {
-                DifficultyManager.RecordFailure(fishId);
+                DifficultyManager.RecordFailure(fishId, Game1.player);
             }
 
-            int level = DifficultyManager.GetDifficultyLevel(fishId);
+            int level = DifficultyManager.GetDifficultyLevel(fishId, Game1.player);
             Monitor.Log($"✓ 已为 {fishId} 增加 {count} 次失败，当前难度等级: {level}", LogLevel.Info);
         }
 
@@ -242,7 +255,7 @@ namespace FishingExpanded
             }
 
             string fishId = args[0];
-            var stats = DifficultyManager.GetFishStats(fishId);
+            var stats = DifficultyManager.GetFishStats(fishId, Game1.player);
 
             if (stats == null)
             {
@@ -251,7 +264,7 @@ namespace FishingExpanded
             }
 
             int level = stats.DifficultyLevel;
-            bool hasStar = DifficultyManager.HasCollectionStar(fishId);
+            bool hasStar = DifficultyManager.HasCollectionStar(fishId, Game1.player);
 
             Monitor.Log("===========================================", LogLevel.Info);
             Monitor.Log($"鱼ID: {fishId}", LogLevel.Info);
@@ -267,7 +280,7 @@ namespace FishingExpanded
 
         private void OnCommandList(string command, string[] args)
         {
-            var allStats = DifficultyManager.GetAllFishStats();
+            var allStats = DifficultyManager.GetAllFishStats(Game1.player);
 
             if (allStats.Count == 0)
             {
@@ -281,7 +294,7 @@ namespace FishingExpanded
                 string fishId = kvp.Key;
                 var stats = kvp.Value;
                 int level = stats.DifficultyLevel;
-                bool hasStar = DifficultyManager.HasCollectionStar(fishId);
+                bool hasStar = DifficultyManager.HasCollectionStar(fishId, Game1.player);
                 string starMark = hasStar ? " ★" : "";
 
                 Monitor.Log($"  {fishId}: 等级={level} ({GetRankName(level)}), " +
@@ -300,7 +313,7 @@ namespace FishingExpanded
                 return;
             }
 
-            DifficultyManager.ClearAllData();
+            DifficultyManager.ClearAllData(Game1.player);
             Monitor.Log("✓ 已清空所有钓鱼数据", LogLevel.Info);
         }
 
@@ -313,7 +326,7 @@ namespace FishingExpanded
             }
 
             string fishId = args[0];
-            DifficultyManager.RecordHighDifficulty(fishId);
+            DifficultyManager.RecordHighDifficulty(fishId, Game1.player);
             Monitor.Log($"✓ 已为 {fishId} 添加收藏星标并增加 +0.5 钓鱼等级", LogLevel.Info);
         }
 
@@ -340,9 +353,9 @@ namespace FishingExpanded
 
         private void OnCommandBonus(string command, string[] args)
         {
-            float bonus = DifficultyManager.GetFishingLevelBonus();
+            float bonus = DifficultyManager.GetFishingLevelBonus(Game1.player);
             int hiddenLevels = (int)Math.Floor(bonus);
-            int starCount = DifficultyManager.GetCollectionStarCount();
+            int starCount = DifficultyManager.GetCollectionStarCount(Game1.player);
 
             Monitor.Log("===========================================", LogLevel.Info);
             Monitor.Log($"收藏星标数量: {starCount}", LogLevel.Info);

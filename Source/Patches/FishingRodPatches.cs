@@ -1,6 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using System.Reflection.Emit;
 using HarmonyLib;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using StardewValley;
 using StardewValley.Tools;
 using StardewValley.Objects;
@@ -34,6 +39,253 @@ namespace FishingExpanded.Patches
         internal static readonly Dictionary<string, PendingFishData> _pendingFish =
             new Dictionary<string, PendingFishData>();
 
+        /// <summary>获取结算鱼图的视觉缩放；鱼王和没有待处理事实的路径保持原生大小。</summary>
+        public static float GetFishVisualScale(FishingRod rod)
+        {
+            try
+            {
+                Farmer owner = rod?.getLastFarmerToUse();
+                string fishId = rod?.whichFish?.QualifiedItemId;
+                if (owner == null || !owner.IsLocalPlayer || string.IsNullOrEmpty(fishId))
+                    return 1f;
+
+                string normalizedFishId = SpecialFishHelper.NormalizeItemId(fishId);
+                if (!TryGetPending(owner, normalizedFishId, out var data))
+                    return 1f;
+
+                float visualScale = DifficultyCalculator.GetVisualScale(data.Multiplier);
+                ObjectPatches.LogVisualDiagnostic(
+                    "FishingRod.draw",
+                    $"{owner.UniqueMultiplayerID}:{normalizedFishId}",
+                    $"anchor=center | visualScale={visualScale:F3} | stateHit={visualScale > 1.001f}");
+                return visualScale;
+            }
+            catch (Exception ex)
+            {
+                ModEntry.ModMonitor.Log($"[FishingRodPatches] 结算视觉缩放读取失败: {ex}", LogLevel.Warn);
+                return 1f;
+            }
+        }
+
+        /// <summary>落地真鱼（结算第二处鱼图及原生多鱼图）的底边中点位置调整。
+        /// 消费式方法：直接吞掉栈上的位置向量并返回调整后位置，避免在注入 IL 中对 Vector2 使用 Add 指令（会导致 coreclr JIT 访问冲突崩溃）。</summary>
+        public static Vector2 AdjustLandingFishPosition(Vector2 position, FishingRod rod)
+        {
+            float visualScale = GetFishVisualScale(rod);
+            if (visualScale <= 1.001f || rod?.whichFish == null)
+                return position;
+
+            try
+            {
+                // 原生落地鱼图使用 (8,8) 中心原点、固定 3f 缩放；放大时保持底边中点不变。
+                Rectangle sourceRect = GetCaughtItemSourceRect(rod);
+                const float nativeScale = 3f;
+                return position + new Vector2(0f, sourceRect.Height * nativeScale * (1f - visualScale) / 2f);
+            }
+            catch (Exception ex)
+            {
+                ModEntry.ModMonitor.Log($"[FishingRodPatches] 落地鱼图底边锚点补偿失败: {ex}", LogLevel.Warn);
+                return position;
+            }
+        }
+
+        /// <summary>被钓起物品的绘制源矩形：鱼类使用物品源矩形，非鱼类使用原生固定垃圾图。</summary>
+        private static Rectangle GetCaughtItemSourceRect(FishingRod rod)
+        {
+            if (rod.whichFish.TypeIdentifier == "(O)")
+                return rod.whichFish.GetParsedOrErrorData().GetSourceRect();
+
+            return new Rectangle(228, 408, 16, 16);
+        }
+
+        /// <summary>被钓起物品的飞行动画纹理名。</summary>
+        private static string GetCaughtItemTextureName(FishingRod rod)
+        {
+            if (rod.whichFish.TypeIdentifier == "(O)")
+                return rod.whichFish.GetParsedOrErrorData().TextureName;
+
+            return "LooseSprites\\Cursors";
+        }
+
+        /// <summary>从水里飞出的真鱼（原生 TemporaryAnimatedSprite）接入视觉缩放；保持飞行轨迹中心锚点。</summary>
+        [HarmonyPatch("doPullFishFromWater")]
+        [HarmonyPostfix]
+        public static void DoPullFishFromWater_Postfix(FishingRod __instance)
+        {
+            try
+            {
+                Farmer owner = __instance?.getLastFarmerToUse();
+                string fishId = __instance?.whichFish?.QualifiedItemId;
+                if (owner == null || !owner.IsLocalPlayer || string.IsNullOrEmpty(fishId))
+                    return;
+
+                string normalizedFishId = SpecialFishHelper.NormalizeItemId(fishId);
+                if (!TryGetPending(owner, normalizedFishId, out var data))
+                    return;
+
+                float visualScale = DifficultyCalculator.GetVisualScale(data.Multiplier);
+                if (visualScale <= 1.001f)
+                    return;
+
+                Rectangle sourceRect = GetCaughtItemSourceRect(__instance);
+                string textureName = GetCaughtItemTextureName(__instance);
+                const float nativeScale = 4f;
+                Vector2 centerOffset = new Vector2(
+                    sourceRect.Width * nativeScale * (1f - visualScale) / 2f,
+                    sourceRect.Height * nativeScale * (1f - visualScale) / 2f);
+
+                int patchedCount = 0;
+                foreach (TemporaryAnimatedSprite anim in __instance.animations)
+                {
+                    if (anim.textureName != textureName || anim.sourceRect != sourceRect)
+                        continue;
+
+                    anim.scale *= visualScale;
+                    anim.position += centerOffset;
+                    patchedCount++;
+                }
+
+                ObjectPatches.LogVisualDiagnostic(
+                    "FishingRod.fly",
+                    $"{owner.UniqueMultiplayerID}:{normalizedFishId}",
+                    $"anchor=center | visualScale={visualScale:F3} | sprites={patchedCount} | stateHit={patchedCount > 0}");
+            }
+            catch (Exception ex)
+            {
+                ModEntry.ModMonitor.Log($"[FishingRodPatches] 飞行动画视觉缩放失败: {ex}", LogLevel.Warn);
+            }
+        }
+
+        /// <summary>只缩放落地真鱼（结算第二处鱼图及原生多鱼图），保持底边中点锚点；结算面板与面板内示意图保持原生大小。</summary>
+        [HarmonyPatch(nameof(FishingRod.draw))]
+        [HarmonyTranspiler]
+        public static IEnumerable<CodeInstruction> Draw_Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var codes = instructions.ToList();
+            var getScaleMethod = AccessTools.Method(typeof(FishingRodPatches), nameof(GetFishVisualScale));
+            var getPositionOffsetMethod = AccessTools.Method(
+                typeof(FishingRodPatches), nameof(AdjustLandingFishPosition));
+
+            int fishMarkerIndex = codes.FindIndex(code => IsLdcI4(code, 1870));
+            if (fishMarkerIndex < 0)
+            {
+                ModEntry.ModMonitor.Log(
+                    "[FishingRodPatches] 未找到结算面板源矩形，落地真鱼缩放未注入",
+                    LogLevel.Warn);
+                return codes;
+            }
+
+            int firstFishDrawIndex = -1;
+            for (int i = fishMarkerIndex; i < codes.Count; i++)
+            {
+                if (IsSpriteBatchDrawCall(codes[i]))
+                {
+                    firstFishDrawIndex = i;
+                    break;
+                }
+            }
+
+            // 落地真鱼绘制 = 3f 缩放且其后的下一个调用是 SpriteBatch.Draw 的鱼图；
+            // 结算面板（4f）、数量数字（drawTinyDigits 的 3f）和文字绘制不在此列。
+            var fishScaleIndices = new HashSet<int>();
+            for (int i = Math.Max(0, firstFishDrawIndex + 1); i < codes.Count; i++)
+            {
+                if (!IsLdcR4(codes[i], 3f))
+                    continue;
+
+                for (int j = i + 1; j < Math.Min(codes.Count, i + 12); j++)
+                {
+                    if (codes[j].opcode != OpCodes.Call && codes[j].opcode != OpCodes.Callvirt)
+                        continue;
+
+                    if (IsSpriteBatchDrawCall(codes[j]))
+                        fishScaleIndices.Add(i);
+                    break;
+                }
+            }
+
+            var patched = new List<CodeInstruction>(codes.Count + 24);
+            int lastGlobalToLocalIndex = -1;
+            int landingScaleCount = 0;
+            int landingPositionCount = 0;
+
+            for (int i = 0; i < codes.Count; i++)
+            {
+                CodeInstruction code = codes[i];
+                patched.Add(code);
+
+                if (i > firstFishDrawIndex && IsGame1GlobalToLocalCall(code))
+                    lastGlobalToLocalIndex = patched.Count - 1;
+
+                if (fishScaleIndices.Contains(i))
+                {
+                    // 栈：[..., 3f] -> [..., 3f * visualScale]
+                    patched.Add(new CodeInstruction(OpCodes.Ldarg_0));
+                    patched.Add(new CodeInstruction(OpCodes.Call, getScaleMethod));
+                    patched.Add(new CodeInstruction(OpCodes.Mul));
+                    landingScaleCount++;
+
+                    // 底边中点补偿：紧跟在该鱼图的 GlobalToLocal 之后调用消费式位置调整方法。
+                    if (lastGlobalToLocalIndex >= 0)
+                    {
+                        patched.Insert(lastGlobalToLocalIndex + 1, new CodeInstruction(OpCodes.Ldarg_0));
+                        patched.Insert(lastGlobalToLocalIndex + 2, new CodeInstruction(OpCodes.Call, getPositionOffsetMethod));
+                        landingPositionCount++;
+                        lastGlobalToLocalIndex = -1;
+                    }
+                }
+            }
+
+            ModEntry.ModMonitor.Log(
+                $"[FishingRodPatches] 落地真鱼缩放注入 | 缩放: {landingScaleCount} | 底边补偿: {landingPositionCount}",
+                landingScaleCount >= 1 && landingPositionCount >= 1
+                    ? LogLevel.Info
+                    : LogLevel.Warn);
+
+            return patched;
+        }
+
+        private static bool IsLdcI4(CodeInstruction code, int expected)
+        {
+            if (code.opcode == OpCodes.Ldc_I4 && code.operand is int value)
+                return value == expected;
+
+            return code.opcode switch
+            {
+                var opcode when opcode == OpCodes.Ldc_I4_M1 => expected == -1,
+                var opcode when opcode == OpCodes.Ldc_I4_0 => expected == 0,
+                var opcode when opcode == OpCodes.Ldc_I4_1 => expected == 1,
+                var opcode when opcode == OpCodes.Ldc_I4_2 => expected == 2,
+                var opcode when opcode == OpCodes.Ldc_I4_3 => expected == 3,
+                var opcode when opcode == OpCodes.Ldc_I4_4 => expected == 4,
+                var opcode when opcode == OpCodes.Ldc_I4_5 => expected == 5,
+                var opcode when opcode == OpCodes.Ldc_I4_6 => expected == 6,
+                var opcode when opcode == OpCodes.Ldc_I4_7 => expected == 7,
+                var opcode when opcode == OpCodes.Ldc_I4_8 => expected == 8,
+                _ => false
+            };
+        }
+
+        private static bool IsLdcR4(CodeInstruction code, float expected)
+        {
+            return code.opcode == OpCodes.Ldc_R4 && code.operand is float value &&
+                Math.Abs(value - expected) < 0.001f;
+        }
+
+        private static bool IsGame1GlobalToLocalCall(CodeInstruction code)
+        {
+            return code.opcode == OpCodes.Call && code.operand is MethodInfo method &&
+                method.DeclaringType == typeof(Game1) && method.Name == nameof(Game1.GlobalToLocal);
+        }
+
+        private static bool IsSpriteBatchDrawCall(CodeInstruction code)
+        {
+            return (code.opcode == OpCodes.Call || code.opcode == OpCodes.Callvirt) &&
+                code.operand is MethodInfo method && method.DeclaringType == typeof(SpriteBatch) &&
+                method.Name == nameof(SpriteBatch.Draw);
+        }
+
+
         /// <summary>BATCH-009/014: pullFishFromWater Prefix - 只记录数据，不修改numCaught（鱼王豁免）</summary>
         [HarmonyPatch(nameof(FishingRod.pullFishFromWater))]
         [HarmonyPrefix]
@@ -65,7 +317,7 @@ namespace FishingExpanded.Patches
                     return;
                 }
 
-                int difficultyLevel = DifficultyManager.GetDifficultyLevel(normalizedFishId);
+                int difficultyLevel = DifficultyManager.GetDifficultyLevel(normalizedFishId, owner);
                 int quantityMultiplier = DifficultyCalculator.GetQuantityMultiplier(difficultyLevel);
 
                 // BATCH-010: 获取脱杆次数
@@ -293,6 +545,12 @@ namespace FishingExpanded.Patches
             return $"{owner.UniqueMultiplayerID}:{Utils.SpecialFishHelper.NormalizeItemId(fishId)}";
         }
 
+    }
+
+    /// <summary>Farmer Patch - 记录成功结算并登记展示事实</summary>
+    [HarmonyPatch(typeof(Farmer))]
+    internal class FarmerFishingPatches
+    {
         /// <summary>caughtFish Postfix - 记录成功结算并登记展示事实</summary>
         [HarmonyPatch(nameof(Farmer.caughtFish))]
         [HarmonyPostfix]
@@ -323,29 +581,42 @@ namespace FishingExpanded.Patches
                     2 => 2,
                     _ => 1
                 };
+                // BATCH-029: 每次成功额外增加 round(调整后难度/50)（例：调整后难度500 → +10），与脱杆基数叠加后统一交给称号区间封顶
+                int difficultyGain = (int)Math.Round(data.AdjustedDifficulty / 50f);
 
-                int oldLevel = DifficultyManager.GetDifficultyLevel(fishId);
-                int actualLevelGain = DifficultyManager.RecordSuccess(fishId, baseLevelGain);
-                int newLevel = DifficultyManager.GetDifficultyLevel(fishId);
+                int oldLevel = DifficultyManager.GetDifficultyLevel(fishId, __instance);
+                int actualLevelGain = DifficultyManager.RecordSuccess(fishId, baseLevelGain + difficultyGain, __instance);
+                int newLevel = DifficultyManager.GetDifficultyLevel(fishId, __instance);
 
                 // 高难度星标必须在成功钓起后才写入；鱼王没有待处理数据，不会进入这里。
-                DifficultyManager.RecordHighDifficulty(fishId, data.AdjustedDifficulty);
+                DifficultyManager.RecordHighDifficulty(fishId, data.AdjustedDifficulty, __instance);
 
                 if (data.Multiplier > 15)
                 {
                     int fishSize = data.FishSize > 0
                         ? data.FishSize
                         : Math.Max(1, data.OriginalNum) * data.Multiplier;
-                    GiantFishManager.RecordGiantFish(fishId, data.Multiplier, fishSize);
+                    GiantFishManager.RecordGiantFish(__instance, fishId, data.Multiplier, fishSize);
                 }
 
                 ModEntry.ModMonitor.Log(
                     $"[Farmer] 难度等级更新 | 鱼ID: {fishId} | " +
-                    $"脱杆: {data.MissCount}次 | 基础增长: +{baseLevelGain} | 实际增长: +{actualLevelGain} | {oldLevel} → {newLevel}",
+                    $"脱杆: {data.MissCount}次 | 基础增长: +{baseLevelGain} | 额外难度增益: +{difficultyGain} | 实际增长: +{actualLevelGain} | {oldLevel} → {newLevel}",
                     LogLevel.Info);
 
                 // BATCH-012/022: 显示成功HUD提示（封顶检测，传入旧等级）
                 HUDNotifier.ShowSuccessNotification(fishId, newLevel, oldLevel);
+
+                // BATCH-032: 星之果茶掉落（难度等级 ≥50 且概率命中；同一防重边界只发放一次；鱼王无待处理数据天然豁免）
+                if (oldLevel >= 50 && DifficultyCalculator.TryGetStarfruitTeaDrop(oldLevel))
+                {
+                    Item starfruitTea = ItemRegistry.Create("(O)StardropTea", 1);
+                    __instance.addItemByMenuIfNecessary(starfruitTea);
+                    HUDNotifier.ShowStarfruitTeaNotification(fishId);
+                    ModEntry.ModMonitor.Log(
+                        $"[Farmer] 星之果茶掉落 | 鱼ID: {fishId} | 难度等级: {oldLevel} | 概率: {oldLevel / 400.0:P1}",
+                        LogLevel.Info);
+                }
             }
             catch (Exception ex)
             {

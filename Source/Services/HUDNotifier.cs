@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using StardewValley;
 using StardewValley.ItemTypeDefinitions;
 using FishingExpanded.Utils;
@@ -9,6 +11,70 @@ namespace FishingExpanded.Services
     /// <summary>HUD 通知管理器</summary>
     public static class HUDNotifier
     {
+        /// <summary>BATCH-032: 每位玩家独立待显示提示队列（FIFO；每玩家上限 5 满丢该玩家最旧；双人同屏各屏幕独立排队）</summary>
+        private static readonly Dictionary<long, Queue<HUDMessage>> PendingByPlayer = new Dictionary<long, Queue<HUDMessage>>();
+
+        /// <summary>BATCH-032: 每位玩家当前正在显示的本 Mod 提示文案（判断是否已从原生 hudMessages 消失）</summary>
+        private static readonly Dictionary<long, string> ActiveMessageText = new Dictionary<long, string>();
+
+        /// <summary>BATCH-032: 统一入队：该玩家无活动提示时立即显示，否则排入该玩家队列（上限 5 丢该玩家最旧）。</summary>
+        private static void EnqueueMessage(Farmer player, HUDMessage message)
+        {
+            if (player == null || message == null)
+                return;
+            long playerId = player.UniqueMultiplayerID;
+            if (!ActiveMessageText.ContainsKey(playerId))
+            {
+                Game1.addHUDMessage(message);
+                ActiveMessageText[playerId] = message.message;
+                return;
+            }
+            if (!PendingByPlayer.TryGetValue(playerId, out Queue<HUDMessage> queue))
+            {
+                queue = new Queue<HUDMessage>();
+                PendingByPlayer[playerId] = queue;
+            }
+            if (queue.Count >= 5)
+                queue.Dequeue();
+            queue.Enqueue(message);
+        }
+
+        /// <summary>BATCH-032: 低频驱动（ModEntry 每约 0.25 秒调用）：当前屏幕玩家前一条从原生 hudMessages 消失后显示其下一条。</summary>
+        public static void ProcessQueue()
+        {
+            try
+            {
+                if (Game1.player == null || Game1.hudMessages == null)
+                    return;
+                long playerId = Game1.player.UniqueMultiplayerID;
+
+                if (ActiveMessageText.TryGetValue(playerId, out string activeText) && !string.IsNullOrEmpty(activeText))
+                {
+                    bool stillVisible = Game1.hudMessages.Any(m => m != null && m.message != null && m.message == activeText);
+                    if (stillVisible)
+                        return;
+                    ActiveMessageText.Remove(playerId);
+                }
+
+                if (!PendingByPlayer.TryGetValue(playerId, out Queue<HUDMessage> queue) || queue.Count == 0)
+                    return;
+                HUDMessage next = queue.Dequeue();
+                Game1.addHUDMessage(next);
+                ActiveMessageText[playerId] = next.message;
+            }
+            catch (Exception ex)
+            {
+                ModEntry.ModMonitor.Log($"HUD 提示队列驱动失败: {ex}", StardewModdingAPI.LogLevel.Error);
+            }
+        }
+
+        /// <summary>BATCH-032: 返回标题/切换存档时清空全部玩家队列与活动记录。</summary>
+        public static void ClearPending()
+        {
+            PendingByPlayer.Clear();
+            ActiveMessageText.Clear();
+        }
+
         /// <summary>BATCH-012/013/014/015/022: 显示钓鱼成功提示（支持封顶、触底、鱼王、非鱼类，修复第一次封顶问题）</summary>
         /// <param name="fishId">鱼的QualifiedItemId</param>
         /// <param name="newLevel">新的难度等级</param>
@@ -19,7 +85,7 @@ namespace FishingExpanded.Services
             if (Utils.SpecialFishHelper.IsLegendaryFish(fishId))
             {
                 string legendaryMessage = Utils.SpecialFishHelper.GetRandomLegendaryMessage();
-                Game1.addHUDMessage(new HUDMessage(legendaryMessage, HUDMessage.achievement_type));
+                EnqueueMessage(Game1.player, new HUDMessage(legendaryMessage, HUDMessage.achievement_type));
 
                 ModEntry.ModMonitor.Log(
                     $"[HUDNotifier] 传奇鱼提示 | 鱼ID: {fishId} | 文案: {legendaryMessage}",
@@ -41,31 +107,24 @@ namespace FishingExpanded.Services
             {
                 if (isNonFish)
                 {
-                    message = $"对于{fishName}而言，你已是帝王";
+                    message = ModEntry.ModHelper.Translation.Get("hud.success.nonFishCap", new { fishName });
                 }
                 else
                 {
-                    message = $"你已经成为{fishName}中的神明，这一刻你是鱼，也是人，更是王。";
+                    message = ModEntry.ModHelper.Translation.Get("hud.success.fishCap", new { fishName });
                 }
             }
             else
             {
-                // BATCH-022: 低等级时不显示提示（避免水草等第一次钓就提示）
-                if (newLevel <= 0)
-                {
-                    ModEntry.ModMonitor.Log(
-                        $"[HUDNotifier] 等级过低，跳过提示 | 鱼: {fishName} ({fishId}) | 等级: {newLevel}",
-                        StardewModdingAPI.LogLevel.Debug);
-                    return;
-                }
-
+                // BATCH-030: 难度等级 <1（0 级和负数）的胜利也显示称号提示（弱称号“额...稍微强一点的个体”）；
+                // 取代 BATCH-022 的 ≤0 跳过逻辑。
                 string rankKey = DifficultyCalculator.GetRankKey(newLevel);
                 string rankName = ModEntry.ModHelper.Translation.Get(rankKey);
                 message = ModEntry.ModHelper.Translation.Get("hud.challenge.title",
                     new { fishName, rank = rankName });
             }
 
-            Game1.addHUDMessage(new HUDMessage(message, HUDMessage.newQuest_type));
+            EnqueueMessage(Game1.player, new HUDMessage(message, HUDMessage.newQuest_type));
 
             ModEntry.ModMonitor.Log(
                 $"[HUDNotifier] 成功提示显示 | 鱼: {fishName} ({fishId}) | " +
@@ -74,17 +133,17 @@ namespace FishingExpanded.Services
         }
 
         /// <summary>显示已有图鉴星标鱼进入小游戏时的挑战宣言。</summary>
-        public static void ShowStarChallengeNotification(string fishId, int difficultyLevel)
+        public static void ShowStarChallengeNotification(string fishId, int difficultyLevel, Farmer player)
         {
             if (Utils.SpecialFishHelper.IsLegendaryFish(fishId) ||
-                !DifficultyManager.HasCollectionStar(fishId))
+                !DifficultyManager.HasCollectionStar(fishId, player))
             {
                 return;
             }
 
             string fishName = GetFishDisplayName(Utils.SpecialFishHelper.NormalizeItemId(fishId));
             string message = ChallengeDialogueGenerator.Generate(fishName, difficultyLevel);
-            Game1.addHUDMessage(new HUDMessage(message, HUDMessage.newQuest_type));
+            EnqueueMessage(player, new HUDMessage(message, HUDMessage.newQuest_type));
 
             ModEntry.ModMonitor.Log(
                 $"[HUDNotifier] 星标鱼挑战宣言 | 鱼: {fishName} ({fishId}) | 等级: {difficultyLevel} | 文案: {message}",
@@ -114,7 +173,7 @@ namespace FishingExpanded.Services
                     message = ModEntry.ModHelper.Translation.Get("hud.challenge.impossible") + message;
                 }
 
-                Game1.addHUDMessage(new HUDMessage(message, HUDMessage.error_type));
+                EnqueueMessage(player, new HUDMessage(message, HUDMessage.error_type));
                 ModEntry.ModMonitor.Log(
                     $"[HUDNotifier] 钓鱼等级建议 | 玩家: {player.UniqueMultiplayerID} | " +
                     $"鱼等级: {difficultyLevel} | 建议等级: {recommendedLevelText} | 当前钓鱼等级: {fishingLevel} | " +
@@ -130,15 +189,21 @@ namespace FishingExpanded.Services
         /// <summary>BATCH-013: 显示钓鱼失败提示（支持触底检测）</summary>
         /// <param name="fishId">鱼的QualifiedItemId</param>
         /// <param name="currentLevel">当前难度等级</param>
-        public static void ShowFailureNotification(string fishId, int currentLevel)
+        /// <param name="isEpicChampion">BATCH-029: 同鱼种连续失败 ≥2 次且调整后难度 ≥150 时显示史诗提示</param>
+        public static void ShowFailureNotification(string fishId, int currentLevel, bool isEpicChampion = false)
         {
             string fishName = GetFishDisplayName(fishId);
             string message;
 
-            // BATCH-013: 检测触底（等级-10）
-            if (currentLevel <= -10)
+            // BATCH-029: 史诗提示优先（同鱼种连续失败 ≥2 次且调整后难度 ≥150）
+            if (isEpicChampion)
             {
-                message = $"最平庸的{fishName}（{Math.Abs(currentLevel)}）依然太难了，请升级鱼竿，钓鱼等级，使用料理增加钓鱼等级，使用陷阱/浮木渔具等";
+                message = ModEntry.ModHelper.Translation.Get("hud.fail.epic");
+            }
+            // BATCH-013: 检测触底（等级-10）
+            else if (currentLevel <= -10)
+            {
+                message = ModEntry.ModHelper.Translation.Get("hud.fail.bottom", new { fishName, absLevel = Math.Abs(currentLevel) });
             }
             else if (currentLevel < 0)
             {
@@ -149,12 +214,32 @@ namespace FishingExpanded.Services
                 message = ModEntry.ModHelper.Translation.Get("hud.fail.positive", new { fishName });
             }
 
-            Game1.addHUDMessage(new HUDMessage(message, HUDMessage.error_type));
+            EnqueueMessage(Game1.player, new HUDMessage(message, HUDMessage.error_type));
 
             ModEntry.ModMonitor.Log(
                 $"[HUDNotifier] 失败提示显示 | 鱼: {fishName} ({fishId}) | " +
-                $"等级: {currentLevel} | 触底: {currentLevel <= -10}",
+                $"等级: {currentLevel} | 触底: {currentLevel <= -10} | 史诗提示: {isEpicChampion}",
                 StardewModdingAPI.LogLevel.Debug);
+        }
+
+        /// <summary>BATCH-032: 星之果茶掉落提示（15 条文案随机，与其他提示一起排队显示）。</summary>
+        public static void ShowStarfruitTeaNotification(string fishId)
+        {
+            try
+            {
+                string fishName = GetFishDisplayName(fishId);
+                int index = Game1.random.Next(1, 16);
+                string message = ModEntry.ModHelper.Translation.Get($"hud.starfruitTea.{index}", new { fishName });
+                EnqueueMessage(Game1.player, new HUDMessage(message, HUDMessage.newQuest_type));
+
+                ModEntry.ModMonitor.Log(
+                    $"[HUDNotifier] 星之果茶掉落提示 | 鱼: {fishName} ({fishId}) | 文案: #{index}",
+                    StardewModdingAPI.LogLevel.Debug);
+            }
+            catch (Exception ex)
+            {
+                ModEntry.ModMonitor.Log($"星之果茶掉落提示失败: {ex}", StardewModdingAPI.LogLevel.Error);
+            }
         }
 
         /// <summary>获取鱼的显示名称（带空检查）</summary>

@@ -70,11 +70,22 @@ namespace FishingExpanded.Utils
             return 8;
         }
 
-        /// <summary>随机获取传奇鱼提示文案</summary>
+        /// <summary>随机获取传奇鱼提示文案（i18n 优先，缺失时回退到内置中文列表）</summary>
         public static string GetRandomLegendaryMessage()
         {
-            int index = StardewValley.Game1.random.Next(LegendaryMessages.Length);
-            return LegendaryMessages[index];
+            string[] options = LoadLegendaryMessages();
+            int index = StardewValley.Game1.random.Next(options.Length);
+            return options[index];
+        }
+
+        private static string[] LoadLegendaryMessages()
+        {
+            string translated = ModEntry.ModHelper.Translation.Get("hud.legendary.messages");
+            if (string.IsNullOrWhiteSpace(translated) || translated == "hud.legendary.messages")
+                return LegendaryMessages;
+
+            string[] options = translated.Split('|', StringSplitOptions.RemoveEmptyEntries);
+            return options.Length == 0 ? LegendaryMessages : options;
         }
     }
 }

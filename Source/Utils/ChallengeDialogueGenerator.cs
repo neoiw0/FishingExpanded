@@ -18,7 +18,9 @@ namespace FishingExpanded.Utils
             ["rank.prince"] = "hud.starChallenge.honor.prince",
             ["rank.emperor"] = "hud.starChallenge.honor.emperor",
             ["rank.godking"] = "hud.starChallenge.honor.godking",
-            ["rank.divineking"] = "hud.starChallenge.honor.divineking"
+            ["rank.divineking"] = "hud.starChallenge.honor.divineking",
+            ["rank.creator"] = "hud.starChallenge.honor.creator",
+            ["rank.chaos"] = "hud.starChallenge.honor.chaos"
         };
 
         private static readonly string[] FallbackHonorifics = { "可敬的", "令人敬重的", "值得敬佩的" };
@@ -39,8 +41,12 @@ namespace FishingExpanded.Utils
                 string resolve = Pick(LoadOptions("hud.starChallenge.resolve", FallbackResolve));
                 string action = Pick(LoadOptions("hud.starChallenge.action", FallbackActions));
 
+                // BATCH-030: 弱称号（等级 <1）只用于零以下胜利提示，不嵌入挑战宣言。
+                string templateKey = rankKey == "rank.weak"
+                    ? "hud.starChallenge.template.weak"
+                    : "hud.starChallenge.template";
                 return ModEntry.ModHelper.Translation.Get(
-                    "hud.starChallenge.template",
+                    templateKey,
                     new
                     {
                         honorific,

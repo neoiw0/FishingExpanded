@@ -13,3 +13,8 @@ RuntimeEvidence/
 *.user
 *.suo
 .env
+
+# Large decompiled IL and build output inside _analysis (evidence hashes indexed in DECOMPILATION-RESEARCH-INDEX.md)
+_analysis/**/bin/
+_analysis/**/obj/
+_analysis/**/Stardew Valley.il

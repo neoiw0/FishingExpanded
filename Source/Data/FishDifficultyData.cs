@@ -25,6 +25,9 @@ namespace FishingExpanded.Data
         /// <summary>失败次数</summary>
         public int FailCount { get; set; } = 0;
 
+        /// <summary>连续失败次数（BATCH-029：同一鱼种连续失败计数，成功时清零；旧存档缺失字段默认 0）</summary>
+        public int ConsecutiveFailCount { get; set; } = 0;
+
         /// <summary>当前难度等级（-10到100，防止溢出）</summary>
         public int DifficultyLevel
         {

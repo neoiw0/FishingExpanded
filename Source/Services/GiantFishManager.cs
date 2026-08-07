@@ -54,7 +54,7 @@ namespace FishingExpanded.Services
                 ModEntry.ModMonitor.Log(
                     $"[GiantFishManager] 超大鱼记录 | 玩家: {player.UniqueMultiplayerID} | 鱼ID: {normalizedFishId} | " +
                     $"倍数: {multiplier} | fishSize: {fishSize} | " +
-                    $"视觉缩放: ×{Math.Pow(multiplier, 1.0/3.0):F2}",
+                    $"视觉缩放: ×{DifficultyCalculator.GetVisualScale(multiplier):F2}",
                     StardewModdingAPI.LogLevel.Info);
             }
         }
@@ -62,15 +62,28 @@ namespace FishingExpanded.Services
         /// <summary>检查并触发NPC反应（性能优化：仅在必要时执行）</summary>
         public static void CheckAndTriggerNPCReactions()
         {
-            if (!Context.IsWorldReady || Game1.player == null) return;
+            if (!Context.IsWorldReady) return;
 
-            FishDisplayData displayData = GetDisplayData(Game1.player, create: false);
+            // BATCH-027: 双人同屏/联机时遍历所有本机玩家，各自检查自己举起的超大鱼。
+            foreach (Farmer player in Game1.getOnlineFarmers())
+            {
+                if (player == null || !player.IsLocalPlayer)
+                    continue;
+
+                CheckAndTriggerForPlayer(player);
+            }
+        }
+
+        /// <summary>检查指定本机玩家举起的超大鱼并触发NPC反应。</summary>
+        private static void CheckAndTriggerForPlayer(Farmer player)
+        {
+            FishDisplayData displayData = GetDisplayData(player, create: false);
             // 性能优化：快速路径 - 没有激活的超大鱼时直接返回
             if (displayData == null || displayData.ActiveGiantFish.Count == 0) return;
 
             // 必须是真正举在手上的物品；仅切换到物品栏不触发巨型鱼效果。
-            var currentItem = Game1.player.ActiveObject;
-            if (currentItem == null || !Game1.player.IsCarrying()) return;
+            var currentItem = player.ActiveObject;
+            if (currentItem == null || !player.IsCarrying()) return;
 
             string fishId = SpecialFishHelper.NormalizeItemId(currentItem.QualifiedItemId);
 
@@ -81,17 +94,17 @@ namespace FishingExpanded.Services
             int fishSize = fishData.fishSize;
 
             // 获取5格内的NPC（性能优化：使用平方距离避免开方）
-            var nearbyNPCs = GetNearbyNPCs(Game1.player.Position, 5 * 64);
+            var nearbyNPCs = GetNearbyNPCs(player.Position, 5 * 64);
 
             if (nearbyNPCs.Count > 0)
             {
                 // 只在有NPC时记录一次（避免每半秒输出）
-                var logKey = (Game1.player.UniqueMultiplayerID, fishId);
+                var logKey = (player.UniqueMultiplayerID, fishId);
                 if (!_lastLoggedNearbyCheck.ContainsKey(logKey) ||
                     _lastLoggedNearbyCheck[logKey] != nearbyNPCs.Count)
                 {
                     ModEntry.ModMonitor.Log(
-                        $"[GiantFishManager] 检测到附近NPC | 玩家: {Game1.player.UniqueMultiplayerID} | 鱼ID: {fishId} | " +
+                        $"[GiantFishManager] 检测到附近NPC | 玩家: {player.UniqueMultiplayerID} | 鱼ID: {fishId} | " +
                         $"5格内NPC数量: {nearbyNPCs.Count}",
                         StardewModdingAPI.LogLevel.Debug);
                     _lastLoggedNearbyCheck[logKey] = nearbyNPCs.Count;
@@ -100,14 +113,14 @@ namespace FishingExpanded.Services
 
             foreach (var npc in nearbyNPCs)
             {
-                TriggerNPCBubble(npc, fishId, fishSize);
+                TriggerNPCBubble(npc, fishId, fishSize, player);
             }
         }
 
         /// <summary>触发NPC冒泡</summary>
-        private static void TriggerNPCBubble(NPC npc, string fishId, int fishSize)
+        private static void TriggerNPCBubble(NPC npc, string fishId, int fishSize, Farmer player)
         {
-            FishDisplayData displayData = GetDisplayData(Game1.player, create: true);
+            FishDisplayData displayData = GetDisplayData(player, create: true);
             if (displayData == null)
                 return;
 
@@ -158,12 +171,6 @@ namespace FishingExpanded.Services
             }
 
             return result;
-        }
-
-        /// <summary>进入FarmHouse时清空超大鱼</summary>
-        public static void OnEnterFarmHouse()
-        {
-            OnEnterFarmHouse(Game1.player);
         }
 
         /// <summary>只清理进入 FarmHouse 的玩家自己的超大鱼事实。</summary>

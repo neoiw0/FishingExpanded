@@ -1,4 +1,5 @@
 using System;
+using StardewValley;
 
 namespace FishingExpanded.Utils
 {
@@ -70,12 +71,28 @@ namespace FishingExpanded.Utils
             return Math.Min(finalQuality, 2); // 最高金星（如果不够3）
         }
 
-        /// <summary>计算视觉缩放倍数（立方根）</summary>
+        /// <summary>计算尺寸数字倍率（BATCH-029：正等级每级 +10%，负等级每级 -5%，与数量倍数解耦）</summary>
+        /// <param name="level">难度等级 [-10, 100]</param>
+        /// <returns>尺寸数字倍率（100级=11，-10级=0.5，防御钳制 ≥0.1）</returns>
+        public static float GetFishSizeMultiplier(int level)
+        {
+            if (level > 0)
+                return 1f + 0.10f * level;
+            if (level < 0)
+                return Math.Max(0.1f, 1f - 0.05f * Math.Abs(level));
+            return 1f;
+        }
+
+        /// <summary>计算视觉缩放倍数（线性：0级=1.0，100级=原25级大小，BATCH-026）</summary>
         /// <param name="quantityMultiplier">数量倍数</param>
         /// <returns>绘制缩放倍数</returns>
         public static float GetVisualScale(int quantityMultiplier)
         {
-            return (float)Math.Pow(quantityMultiplier, 1.0 / 3.0);
+            if (quantityMultiplier <= 1) return 1f;
+
+            // 线性缩放：倍数200（等级100）→ 原25级大小 51^(1/3) ≈ 3.70843
+            // 斜率 = (3.70843 - 1) / 199 ≈ 0.0136102；换算到每级 ≈ +0.0270843
+            return 1f + (quantityMultiplier - 1) * 0.0136102f;
         }
 
         /// <summary>计算蓄力槽减速倍率（全局保护 + 负数难度加成，取最小值）</summary>
@@ -143,7 +160,8 @@ namespace FishingExpanded.Utils
             if (level <= 45) return "rank.emperor";  // 帝王 34-45
             if (level <= 66) return "rank.godking";  // 神皇 46-66
             if (level <= 88) return "rank.divineking"; // 神王 67-88
-            return "rank.divineking"; // 神王 89-100（同称号）
+            if (level <= 99) return "rank.creator";    // 创世神 89-99（BATCH-028）
+            return "rank.chaos";                       // 混沌 100（BATCH-028）
         }
 
         /// <summary>BATCH-023: 获取下一个称号区间的上限（用于越级限制）</summary>
@@ -160,8 +178,18 @@ namespace FishingExpanded.Utils
             if (currentLevel <= 33) return 45;// 亲王 → 帝王上限
             if (currentLevel <= 45) return 66;// 帝王 → 神皇上限
             if (currentLevel <= 66) return 88;// 神皇 → 神王上限
-            if (currentLevel <= 88) return 100;// 神王(67-88) → 最高上限
-            return 100; // 已经是最高等级(89-100仍是神王)
+            if (currentLevel <= 88) return 99;// 神王(67-88) → 创世神上限（BATCH-028）
+            if (currentLevel <= 99) return 100;// 创世神(89-99) → 混沌上限（BATCH-028）
+            return 100; // 混沌(100) → 混沌上限（BATCH-028）
+        }
+
+        /// <summary>BATCH-032: 星之果茶掉落判定。难度等级 ≥50 时概率 = 等级/4%（即 等级/400）；鱼王豁免由调用方保证。</summary>
+        public static bool TryGetStarfruitTeaDrop(int difficultyLevel)
+        {
+            if (difficultyLevel < 50)
+                return false;
+            double chance = difficultyLevel / 400.0;
+            return Game1.random.NextDouble() < chance;
         }
     }
 }

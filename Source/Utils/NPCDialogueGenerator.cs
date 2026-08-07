@@ -110,19 +110,21 @@ namespace FishingExpanded.Utils
             "你钓到了{1}厘米的{0}...这需要多少勇气！"
         };
 
-        /// <summary>生成随机的鱼赞美文案（带空检查）</summary>
+        /// <summary>生成随机的鱼赞美文案（i18n 优先，缺失时回退到内置中文列表）</summary>
         public static string GenerateFishPraise(string fishName, int fishSize)
         {
             try
             {
+                string[] templates = LoadPraiseTemplates();
+
                 // Bug修复：Game1.random可能为null（极端情况）
                 if (Game1.random == null)
                 {
-                    return string.Format(PraiseTemplates[0], fishName, fishSize);
+                    return string.Format(templates[0], fishName, fishSize);
                 }
 
-                int index = Game1.random.Next(PraiseTemplates.Length);
-                return string.Format(PraiseTemplates[index], fishName, fishSize);
+                int index = Game1.random.Next(templates.Length);
+                return string.Format(templates[index], fishName, fishSize);
             }
             catch (Exception ex)
             {
@@ -131,6 +133,15 @@ namespace FishingExpanded.Utils
                     StardewModdingAPI.LogLevel.Error);
                 return $"哇！这条{fishName}真大！";
             }
+        }
+        private static string[] LoadPraiseTemplates()
+        {
+            string translated = ModEntry.ModHelper.Translation.Get("npc.praise.templates");
+            if (string.IsNullOrWhiteSpace(translated) || translated == "npc.praise.templates")
+                return PraiseTemplates;
+
+            string[] options = translated.Split('|', StringSplitOptions.RemoveEmptyEntries);
+            return options.Length == 0 ? PraiseTemplates : options;
         }
     }
 }
