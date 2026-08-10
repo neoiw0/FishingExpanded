@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using HarmonyLib;
 using Microsoft.Xna.Framework;
@@ -29,27 +29,27 @@ namespace FishingExpanded.Patches
                 if (___currentTab != CollectionsPage.fishTab || string.IsNullOrEmpty(id))
                     return;
 
-                // BATCH-014: 鱼王豁免
-                if (SpecialFishHelper.IsLegendaryFish(id))
-                    return;
-
                 string fishId = SpecialFishHelper.NormalizeItemId(id);
-
-                // 获取难度等级和称号
-                int level = DifficultyManager.GetDifficultyLevel(fishId, Game1.player);
-                string rankKey = DifficultyCalculator.GetRankKey(level);
-                string rankName = ModEntry.ModHelper.Translation.Get(rankKey);
+                bool hasCrown = DifficultyManager.HasCollectionStar(fishId, Game1.player);
 
                 var additions = new List<string>();
-                if (level > 0)
-                    additions.Add(ModEntry.ModHelper.Translation.Get(
-                        "collections.challengeRank", new { rankName, level }));
 
-                // BATCH-025: 加成按鱼种独立展示，只有该鱼已有收藏星标时才显示
-                // 本条鱼的 +0.5；不再把全局累计加成显示在每一条鱼上。
-                // 2026-08-06 用户确认措辞：钓鱼条长度额外加成。
-                if (DifficultyManager.HasCollectionStar(fishId, Game1.player))
-                    additions.Add(ModEntry.ModHelper.Translation.Get("collections.fishingBonus"));
+                // BATCH-014: 鱼王豁免挑战等级展示（皇冠加成行不受影响）
+                if (!SpecialFishHelper.IsLegendaryFish(id))
+                {
+                    int level = DifficultyManager.GetDifficultyLevel(fishId, Game1.player);
+                    if (level > 0)
+                    {
+                        string rankKey = DifficultyCalculator.GetRankKey(level);
+                        string rankName = ModEntry.ModHelper.Translation.Get(rankKey);
+                        additions.Add(ModEntry.ModHelper.Translation.Get(
+                            "collections.challengeRank", new { rankName, level }));
+                    }
+                }
+
+                // BATCH-036: 有皇冠的鱼显示其提供的加成（用户确认文案“钓鱼控制力+1”；只读展示，不新增状态）
+                if (hasCrown)
+                    additions.Add(ModEntry.ModHelper.Translation.Get("collections.crownControl"));
 
                 if (additions.Count > 0)
                     __result += Environment.NewLine + string.Join(" | ", additions);
@@ -90,17 +90,43 @@ namespace FishingExpanded.Patches
                 }
 
                 Texture2D crownTexture = GetCrownTexture();
+                Rectangle crownSource = new Rectangle(20, 800, 20, 20);
+
+                // BATCH-038: 流动金色皇冠呼吸脉冲（挑战鱼饵生效且难度等级≥95 时成功获得的鱼）
+                double pulseTime = Game1.currentGameTime.TotalGameTime.TotalMilliseconds / 300.0;
+                float pulse = (float)Math.Sin(pulseTime);
+
                 foreach (ClickableTextureComponent item in pages[___currentPage])
                 {
                     string[] parts = item.name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                     if (parts.Length == 0 || !DifficultyManager.HasCollectionStar(parts[0], Game1.player))
                         continue;
 
-                    b.Draw(
-                        crownTexture,
-                        new Rectangle(item.bounds.X + 3, item.bounds.Y + 3, 24, 24),
-                        new Rectangle(20, 800, 20, 20),
-                        Color.White);
+                    if (DifficultyManager.HasChallengeCrown(parts[0], Game1.player))
+                    {
+                        // 流动金色：金/白呼吸 + 1±0.05 缩放脉冲（视觉待真实游戏确认）
+                        Color flowColor = Color.Lerp(new Color(218, 165, 32), Color.White, (pulse + 1f) / 2f * 0.4f);
+                        float flowScale = 24f * (1f + 0.05f * pulse);
+                        Vector2 center = new Vector2(item.bounds.X + 3 + 12, item.bounds.Y + 3 + 12);
+                        b.Draw(
+                            crownTexture,
+                            center,
+                            crownSource,
+                            flowColor,
+                            0f,
+                            new Vector2(10f, 10f),
+                            flowScale / 20f,
+                            SpriteEffects.None,
+                            0.99f);
+                    }
+                    else
+                    {
+                        b.Draw(
+                            crownTexture,
+                            new Rectangle(item.bounds.X + 3, item.bounds.Y + 3, 24, 24),
+                            crownSource,
+                            Color.White);
+                    }
                 }
             }
             catch (Exception ex)

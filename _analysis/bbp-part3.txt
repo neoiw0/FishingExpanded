@@ -1,0 +1,272 @@
+
+        /// <summary>BATCH-010: 获取脱杆次数</summary>
+        public static int GetMissCount(BobberBar instance)
+        {
+            if (_instanceData.TryGetValue(instance, out var data))
+                return data.MissCount;
+            return 0;
+        }
+
+        /// <summary>获取当前小游戏实际使用的难度，用于成功后记录收藏星标</summary>
+        public static float GetAdjustedDifficulty(BobberBar instance)
+        {
+            return _instanceData.TryGetValue(instance, out var data) ? data.AdjustedDifficulty : 0f;
+        }
+
+        /// <summary>BATCH-038: 当前小游戏是否使用挑战鱼饵（结算边界读取）。</summary>
+        public static bool HasChallengeBait(BobberBar instance)
+        {
+            return _instanceData.TryGetValue(instance, out var data) && data.HasChallengeBait;
+        }
+
+        /// <summary>BATCH-038: 当前小游戏已战斗秒数（挑战鱼饵 5 分钟时限判定；仅调整后难度≥100 时累计）。</summary>
+        public static float GetElapsedSeconds(BobberBar instance)
+        {
+            return _instanceData.TryGetValue(instance, out var data) ? data.ExhaustionElapsedSeconds : 0f;
+        }
+
+        /// <summary>update Postfix：检测钓鱼结果并记录</summary>
+        [HarmonyPatch(nameof(BobberBar.update))]
+        [HarmonyPostfix]
+        public static void Update_Postfix(
+            BobberBar __instance,
+            float ___distanceFromCatching,
+            bool ___fadeOut)
+        {
+            try
+            {
+                if (!_instanceData.TryGetValue(__instance, out var data))
+                    return;
+
+                // 钓鱼失败（只记录一次）
+                if (___fadeOut && ___distanceFromCatching <= 0f && !data.FailureRecorded)
+                {
+                    ModEntry.ModMonitor.Log(
+                        $"[BobberBar] 钓鱼失败 | 实例: {__instance.GetHashCode()} | 鱼ID: {data.FishId} | " +
+                        $"蓄力槽耗尽: {___distanceFromCatching:F3}",
+                        LogLevel.Info);
+
+                    DifficultyManager.RecordFailure(data.FishId, data.Owner ?? Game1.player);
+
+                    // 显示失败 HUD 提示（BATCH-029: 同鱼种连续失败 ≥2 次且本次调整后难度 ≥150 时改用史诗提示）
+                    int newLevel = DifficultyManager.GetDifficultyLevel(data.FishId, data.Owner ?? Game1.player);
+                    bool isEpicChampion = data.AdjustedDifficulty >= 150f &&
+                        DifficultyManager.GetConsecutiveFailCount(data.FishId, data.Owner ?? Game1.player) >= 2;
+                    HUDNotifier.ShowFailureNotification(data.FishId, newLevel, isEpicChampion);
+                    data.FailureRecorded = true; // BATCH-030: 防止淡出动画期间重复记录失败（BATCH-029 重写时误删）
+                    data.ResultStarted = true;
+                }
+
+                if (___fadeOut && ___distanceFromCatching >= 1f)
+                    data.ResultStarted = true;
+
+                // 原生成功路径在淡出动画结束时才调用 FishingRod.pullFishFromWater；
+                // 必须等 fadeOut 结束，否则会提前丢失脱杆次数和实际难度。
+                if (data.ResultStarted && !___fadeOut)
+                {
+                    CleanupInstance(__instance);
+                }
+            }
+            catch (Exception ex)
+            {
+                ModEntry.ModMonitor.Log($"BobberBar.update Postfix 失败: {ex}", LogLevel.Error);
+            }
+        }
+
+        /// <summary>清理单个实例数据</summary>
+        private static void CleanupInstance(BobberBar instance)
+        {
+            if (_instanceData.Remove(instance))
+            {
+                ModEntry.ModMonitor.Log(
+                    $"[BobberBar] 清理实例数据 | 实例: {instance.GetHashCode()}",
+                    LogLevel.Debug);
+            }
+        }
+
+        /// <summary>定期清理无效实例（防止内存泄漏）</summary>
+        public static void PeriodicCleanup()
+        {
+            try
+            {
+                // ConditionalWeakTable 会在 BobberBar 不再被游戏引用时自动释放条目；
+                // 这里保留事件入口兼容旧维护台账，不再遍历或强持有实例。
+            }
+            catch (Exception ex)
+            {
+                ModEntry.ModMonitor.Log($"BobberBar 定期清理失败: {ex}", LogLevel.Error);
+            }
+        }
+
+        /// <summary>BATCH-028/034: 高难度运动公式修正 + 手感系统 + 帧率解耦 Transpiler
+        /// （核对 IL 证据 _analysis/bobberbar-il-20260806，update 方法 986387–987909）。
+        /// 1) 换目标频率三处与 dart 偏移量中的 difficulty 按 150 封顶（5 处，BATCH-028 保留）。
+        /// 2) 加速度线性增幅（stfld bobberAcceleration 前，BATCH-029 保留，阈值 BATCH-034 改 98）。
+        /// 3) 手感系统：绿条速度输入线性混合（ApplyBarInput）、撞边钳制线性（ApplyBounce×2）。
+        /// 4) 帧率解耦：概率三处（4000/2000/1000）、漂移 ±0.01×2、平滑 /5、鱼位置积分、绿条位置积分。
+        /// 全部注入点按 IL 栈序核对；任何注入点缺失都保留原代码并记录警告。</summary>
+        [HarmonyPatch(nameof(BobberBar.update))]
+        [HarmonyTranspiler]
+        private static IEnumerable<CodeInstruction> Update_Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var codes = instructions.ToList();
+
+            FieldInfo difficultyField = AccessTools.Field(typeof(BobberBar), "difficulty");
+            FieldInfo motionTypeField = AccessTools.Field(typeof(BobberBar), "motionType");
+            FieldInfo bobberAccelerationField = AccessTools.Field(typeof(BobberBar), "bobberAcceleration");
+            FieldInfo bobberSpeedField = AccessTools.Field(typeof(BobberBar), "bobberSpeed");
+            FieldInfo bobberPositionField = AccessTools.Field(typeof(BobberBar), "bobberPosition");
+            FieldInfo bobberBarSpeedField = AccessTools.Field(typeof(BobberBar), "bobberBarSpeed");
+            FieldInfo bobberBarPosField = AccessTools.Field(typeof(BobberBar), "bobberBarPos");
+            FieldInfo floaterSinkerAccelerationField = AccessTools.Field(typeof(BobberBar), "floaterSinkerAcceleration");
+
+            MethodInfo mathMinMethod = typeof(Math).GetMethod("Min", new[] { typeof(float), typeof(float) });
+            MethodInfo accelerationBoostMethod = typeof(BobberBarPatches).GetMethod(
+                nameof(GetAccelerationBoost), BindingFlags.Static | BindingFlags.Public);
+            MethodInfo frameScaleMethod = typeof(BobberBarPatches).GetMethod(
+                nameof(GetFrameScale), BindingFlags.Static | BindingFlags.Public);
+            MethodInfo smoothFactorMethod = typeof(BobberBarPatches).GetMethod(
+                nameof(GetSmoothFactor), BindingFlags.Static | BindingFlags.Public);
+            MethodInfo scaleProbabilityMethod = typeof(BobberBarPatches).GetMethod(
+                nameof(ScaleProbability), BindingFlags.Static | BindingFlags.Public);
+            MethodInfo applyBarInputMethod = typeof(BobberBarPatches).GetMethod(
+                nameof(ApplyBarInput), BindingFlags.Static | BindingFlags.Public);
+            MethodInfo applyBarPositionMethod = typeof(BobberBarPatches).GetMethod(
+                nameof(ApplyBarPosition), BindingFlags.Static | BindingFlags.Public);
+            MethodInfo applyFishPositionMethod = typeof(BobberBarPatches).GetMethod(
+                nameof(ApplyFishPosition), BindingFlags.Static | BindingFlags.Public);
+            MethodInfo applyBounceMethod = typeof(BobberBarPatches).GetMethod(
+                nameof(ApplyBounce), BindingFlags.Static | BindingFlags.Public);
+
+            // BATCH-028: difficulty 按 150 封顶（换目标频率与 dart 偏移量共用）
+            var difficultyCap = new[]
+            {
+                new CodeInstruction(OpCodes.Ldc_R4, 150f),
+                new CodeInstruction(OpCodes.Call, mathMinMethod)
+            };
+
+            for (int i = 0; i < codes.Count; i++)
+            {
+                CodeInstruction current = codes[i];
+                CodeInstruction next = i + 1 < codes.Count ? codes[i + 1] : null;
+                CodeInstruction nextNext = i + 2 < codes.Count ? codes[i + 2] : null;
+
+                if (current.opcode == OpCodes.Ldfld && Equals(current.operand, difficultyField))
+                {
+                    if ((next != null && next.opcode == OpCodes.Ldfld && Equals(next.operand, motionTypeField)) ||
+                        (next != null && next.opcode == OpCodes.Ldc_R4 && IsFloat(next.operand, 2000f)) ||
+                        (next != null && next.opcode == OpCodes.Ldc_R4 && IsFloat(next.operand, 1000f)) ||
+                        (next != null && next.opcode == OpCodes.Conv_I4 && nextNext != null && nextNext.opcode == OpCodes.Ldc_I4_2))
+                    {
+                        codes.InsertRange(i + 1, difficultyCap);
+                        i += difficultyCap.Length;
+                    }
+                }
+                else if (current.opcode == OpCodes.Stfld && Equals(current.operand, bobberAccelerationField) && i > 0)
+                {
+                    // BATCH-029/034: 高难度加速度线性增幅。d>100 时按等级档位：等级 ≥98 保持 100% 增幅，
+                    // 等级 <98 降为现增幅的 10%（例：190 → ×1.09）；d≤100 返回 1（原生不变）。
+                    codes.InsertRange(i, new[]
+                    {
+                        new CodeInstruction(OpCodes.Ldarg_0),
+                        new CodeInstruction(OpCodes.Dup),
+                        new CodeInstruction(OpCodes.Ldfld, difficultyField),
+                        new CodeInstruction(OpCodes.Call, accelerationBoostMethod),
+                        new CodeInstruction(OpCodes.Mul)
+                    });
+                    i += 5;
+                }
+                else if (current.opcode == OpCodes.Ldc_R4 &&
+                    (IsFloat(current.operand, 4000f) || IsFloat(current.operand, 2000f) || IsFloat(current.operand, 1000f)) &&
+                    next != null && next.opcode == OpCodes.Div)
+                {
+                    // 帧率解耦：概率换算 1-(1-p)^k；60fps 恒等。
+                    codes.Insert(i + 2, new CodeInstruction(OpCodes.Call, scaleProbabilityMethod));
+                    i++;
+                }
+                else if (current.opcode == OpCodes.Ldc_R4 && IsFloat(current.operand, 0.01f) &&
+                    i > 0 && codes[i - 1].opcode == OpCodes.Ldfld &&
+                    Equals(codes[i - 1].operand, floaterSinkerAccelerationField))
+                {
+                    // 帧率解耦：漂移 ±0.01×k。
+                    codes.InsertRange(i + 1, new[]
+                    {
+                        new CodeInstruction(OpCodes.Call, frameScaleMethod),
+                        new CodeInstruction(OpCodes.Mul)
+                    });
+                    i += 2;
+                }
+                else if (current.opcode == OpCodes.Ldc_R4 && IsFloat(current.operand, 5f) &&
+                    next != null && next.opcode == OpCodes.Div && nextNext != null && nextNext.opcode == OpCodes.Add)
+                {
+                    // 帧率解耦：平滑 /5 → 连续化 ×(1-0.8^k)。
+                    codes.InsertRange(i + 2, new[]
+                    {
+                        new CodeInstruction(OpCodes.Call, smoothFactorMethod),
+                        new CodeInstruction(OpCodes.Mul)
+                    });
+                    i += 2;
+                }
+                else if (current.opcode == OpCodes.Add && next != null && next.opcode == OpCodes.Stfld &&
+                    Equals(next.operand, bobberPositionField))
+                {
+                    // 帧率解耦：鱼位置积分 pos += delta×k。
+                    codes[i] = new CodeInstruction(OpCodes.Call, applyFishPositionMethod);
+                }
+                else if (current.opcode == OpCodes.Add && i > 3 && IsLocalIndex(codes[i - 1], 4) &&
+                    next != null && next.opcode == OpCodes.Stfld && Equals(next.operand, bobberBarSpeedField) &&
+                    codes[i - 2].opcode == OpCodes.Ldfld && Equals(codes[i - 2].operand, bobberBarSpeedField) &&
+                    codes[i - 3].opcode == OpCodes.Ldarg_0 && codes[i - 4].opcode == OpCodes.Ldarg_0)
+                {
+                    // 手感系统：绿条输入线性混合（BATCH-034；唯一 num5 累加点）。
+                    // 原生 this.bobberBarSpeed += num5 的栈在 add 处为 [inst(stfld 用), speed, num5]，
+                    // 底部实例是 stfld 的目标引用且必须保留：ldarg.0; dup; ldfld speed; ldloc num5;
+                    // call ApplyBarInput(instance, speed, num5) → [inst, newSpeed] → 原 stfld 直接消费。
+                    var ldlocNum5 = codes[i - 1];
+                    codes.RemoveRange(i - 4, 5);
+                    codes.InsertRange(i - 4, new[]
+                    {
+                        new CodeInstruction(OpCodes.Ldarg_0),
+                        new CodeInstruction(OpCodes.Dup),
+                        new CodeInstruction(OpCodes.Dup),
+                        new CodeInstruction(OpCodes.Ldfld, bobberBarSpeedField),
+                        ldlocNum5,
+                        new CodeInstruction(OpCodes.Call, applyBarInputMethod)
+                    });
+                }
+                else if (current.opcode == OpCodes.Add && next != null && next.opcode == OpCodes.Stfld &&
+                    Equals(next.operand, bobberBarPosField))
+                {
+                    // 帧率解耦：绿条位置积分 pos += speed×k（60fps 恒等）。
+                    codes[i] = new CodeInstruction(OpCodes.Call, applyBarPositionMethod);
+                }
+                else if (current.opcode == OpCodes.Div && i > 7 &&
+                    codes[i - 1].opcode == OpCodes.Ldc_R4 && IsFloat(codes[i - 1].operand, 3f) &&
+                    codes[i - 2].opcode == OpCodes.Mul &&
+                    codes[i - 3].opcode == OpCodes.Ldc_R4 && IsFloat(codes[i - 3].operand, 2f) &&
+                    codes[i - 4].opcode == OpCodes.Neg &&
+                    codes[i - 5].opcode == OpCodes.Ldfld && Equals(codes[i - 5].operand, bobberBarSpeedField) &&
+                    codes[i - 6].opcode == OpCodes.Ldarg_0 && codes[i - 7].opcode == OpCodes.Ldarg_0)
+                {
+                    // 手感系统：撞边反弹保留系数 2/3×(1-α)（底部/顶部两处；α=0 原生反弹，α=1 完全钳制）。
+                    // 原生 (0f - speed) * 2f / 3f 在 div 处栈为 [inst(stfld 用), bounced]：
+                    // 整体替换为 ldarg.0; dup; dup; ...; call ApplyBounce(instance, bounced) → [inst, bounced×(1-α)]。
+                    codes.RemoveRange(i - 7, 8);
+                    codes.InsertRange(i - 7, new[]
+                    {
+                        new CodeInstruction(OpCodes.Ldarg_0),
+                        new CodeInstruction(OpCodes.Dup),
+                        new CodeInstruction(OpCodes.Dup),
+                        new CodeInstruction(OpCodes.Ldfld, bobberBarSpeedField),
+                        new CodeInstruction(OpCodes.Neg),
+                        new CodeInstruction(OpCodes.Ldc_R4, 2f),
+                        new CodeInstruction(OpCodes.Mul),
+                        new CodeInstruction(OpCodes.Ldc_R4, 3f),
+                        new CodeInstruction(OpCodes.Div),
+                        new CodeInstruction(OpCodes.Call, applyBounceMethod)
+                    });
+                }
+            }
+
+            return codes;
+        }

@@ -20,7 +20,7 @@ namespace FishingExpanded.Utils
             ["rank.godking"] = "hud.starChallenge.honor.godking",
             ["rank.divineking"] = "hud.starChallenge.honor.divineking",
             ["rank.creator"] = "hud.starChallenge.honor.creator",
-            ["rank.chaos"] = "hud.starChallenge.honor.chaos"
+            ["rank.taiyi"] = "hud.starChallenge.honor.taiyi"
         };
 
         private static readonly string[] FallbackHonorifics = { "可敬的", "令人敬重的", "值得敬佩的" };

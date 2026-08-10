@@ -3,6 +3,7 @@ using System.IO;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
+using StardewModdingAPI;
 using StardewValley.Menus;
 
 namespace Batch029TranspilerCheck
@@ -18,6 +19,7 @@ namespace Batch029TranspilerCheck
             }
 
             string dllPath = Path.GetFullPath(args[0]);
+            BootstrapModEntry(dllPath);
             bool patchAllMode = args.Length > 1 && args[1] == "--patchall";
             AppDomain.CurrentDomain.AssemblyResolve += ResolveGameAssemblies;
             try
@@ -78,6 +80,35 @@ namespace Batch029TranspilerCheck
             }
         }
 
+        /// <summary>在无 SMAPI 宿主环境下为 ModEntry 注入空安全 Monitor 桩，保证 Transpiler 内的日志调用不 NRE。</summary>
+        private static void BootstrapModEntry(string dllPath)
+        {
+            try
+            {
+                var fe = Assembly.LoadFrom(dllPath);
+                Type modEntryType = fe.GetType("FishingExpanded.ModEntry");
+                object entry = Activator.CreateInstance(modEntryType);
+                modEntryType.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static)?.SetValue(null, entry);
+                var monitorProp = typeof(StardewModdingAPI.Mod).GetProperty("Monitor", BindingFlags.Public | BindingFlags.Instance);
+                monitorProp?.SetValue(entry, DispatchProxy.Create<IMonitor, NoopProxy>());
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("WARN: ModEntry bootstrap failed (" + ex.GetType().Name + ": " + ex.Message + ")");
+            }
+        }
+
+        private class NoopProxy : DispatchProxy
+        {
+            public NoopProxy() { }
+            protected override object Invoke(MethodInfo targetMethod, object[] args)
+            {
+                if (targetMethod.ReturnType == typeof(bool)) return false;
+                if (targetMethod.ReturnType == typeof(int)) return 0;
+                return null;
+            }
+        }
+
         private static Assembly ResolveGameAssemblies(object sender, ResolveEventArgs args)
         {
             string name = new AssemblyName(args.Name).Name + ".dll";
@@ -97,3 +128,5 @@ namespace Batch029TranspilerCheck
         }
     }
 }
+
+

@@ -29,6 +29,13 @@ namespace FishingExpanded.Patches
             public int MissCount { get; set; }
             public float AdjustedDifficulty { get; set; }
             public int FishSize { get; set; }
+
+            // BATCH-038: 万能鱼饵加成（难度等级>0 且原生本应给两条鱼时 +10 条）；挑战鱼饵加成（调整后难度>100
+            // 且 5 分钟内成功时按原生数量 ×1.5 向上取整；超时只取消数量加成，皇冠/等级照常）；挑战鱼饵标志（流动皇冠判定）。
+            public bool WildBaitBonus { get; set; }
+            public bool ChallengeBonusActive { get; set; }
+            public bool HasChallengeBait { get; set; }
+
             public bool SuccessRecorded { get; set; }
             public bool ExperienceAdjusted { get; set; }
             public int CreateFishCalls { get; set; }
@@ -153,6 +160,49 @@ namespace FishingExpanded.Patches
             catch (Exception ex)
             {
                 ModEntry.ModMonitor.Log($"[FishingRodPatches] 飞行动画视觉缩放失败: {ex}", LogLevel.Warn);
+            }
+        }
+
+        /// <summary>BATCH-038: 结算尺寸与品质统一应用（doPullFishFromWater Postfix）。
+        /// 尺寸：把 __instance.fishSize 改为结算边界算好的乘后值（结算面板/手持数字/记录共用同一字段）；
+        /// 品质：难度等级>0 时脱杆不再影响品质——按原生完美规则提升（鱼Quality≥2→铱、≥1→金），原生已完美时幂等。</summary>
+        [HarmonyPatch("doPullFishFromWater")]
+        [HarmonyPostfix]
+        public static void DoPullFishFromWater_SizeQuality_Postfix(FishingRod __instance)
+        {
+            try
+            {
+                Farmer owner = __instance?.getLastFarmerToUse();
+                string fishId = __instance?.whichFish?.QualifiedItemId;
+                if (owner == null || !owner.IsLocalPlayer || string.IsNullOrEmpty(fishId))
+                    return;
+
+                string normalizedFishId = SpecialFishHelper.NormalizeItemId(fishId);
+                if (!TryGetPending(owner, normalizedFishId, out var data))
+                    return;
+
+                if (data.DifficultyLevel != 0 && data.FishSize > 0)
+                {
+                    __instance.fishSize = data.FishSize;
+                }
+
+                if (data.DifficultyLevel > 0)
+                {
+                    // 原生完美规则：num2>=2 → 4（铱）、num2>=1 → 2（金）；此处等价于“perfect 恒真”。
+                    if (__instance.fishQuality >= 2)
+                        __instance.fishQuality = 4;
+                    else if (__instance.fishQuality >= 1)
+                        __instance.fishQuality = 2;
+                }
+
+                ModEntry.ModMonitor.Log(
+                    $"[FishingRod] 结算尺寸/品质应用 | 玩家: {owner.UniqueMultiplayerID} | 鱼ID: {normalizedFishId} | " +
+                    $"等级: {data.DifficultyLevel} | fishSize: {__instance.fishSize} | fishQuality: {__instance.fishQuality}",
+                    LogLevel.Debug);
+            }
+            catch (Exception ex)
+            {
+                ModEntry.ModMonitor.Log($"[FishingRodPatches] 结算尺寸/品质应用失败: {ex}", LogLevel.Warn);
             }
         }
 
@@ -312,6 +362,9 @@ namespace FishingExpanded.Patches
                         $"[FishingRod] 传奇鱼（鱼王）豁免规则 | 鱼ID: {normalizedFishId}",
                         LogLevel.Info);
 
+                    // BATCH-034: 原版 5 条传奇鱼钓到一次直接给皇冠（计入可计数皇冠/手感进度 α；失败不经过本边界）
+                    DifficultyManager.RecordLegendaryCatch(normalizedFishId, owner);
+
                     // 显示鱼王提示
                     HUDNotifier.ShowSuccessNotification(fishId, 0);
                     return;
@@ -323,13 +376,28 @@ namespace FishingExpanded.Patches
                 // BATCH-010: 获取脱杆次数
                 int missCount = 0;
                 float adjustedDifficulty = fishDifficulty;
+                bool hasChallengeBait = false;
+                float elapsedSeconds = 0f;
                 if (Game1.activeClickableMenu is StardewValley.Menus.BobberBar bobberBar)
                 {
                     missCount = BobberBarPatches.GetMissCount(bobberBar);
                     float trackedDifficulty = BobberBarPatches.GetAdjustedDifficulty(bobberBar);
                     if (trackedDifficulty > 0f)
                         adjustedDifficulty = trackedDifficulty;
+                    hasChallengeBait = BobberBarPatches.HasChallengeBait(bobberBar);
+                    elapsedSeconds = BobberBarPatches.GetElapsedSeconds(bobberBar);
                 }
+
+                // BATCH-038: 万能鱼饵加成判定（难度等级>0 且原生本应给两条鱼，即非挑战鱼饵的 numCaught>=2）；
+                // 挑战鱼饵加成判定（调整后难度>100 且 5 分钟内成功；超时只取消数量加成）。
+                bool wildBaitBonus = difficultyLevel > 0 && numCaught >= 2 && !hasChallengeBait;
+                bool challengeBonusActive = hasChallengeBait && adjustedDifficulty > 100f && elapsedSeconds < 300f;
+
+                // BATCH-038: 尺寸数字倍率移到本结算边界统一应用（正等级每级 +10%，负等级每级 -5%）；
+                // 与原生“脱杆缩水”解耦（难度等级>0 时缩水已在 BobberBar.update Prefix 禁用）。
+                int recordedFishSize = fishSize > 0 && difficultyLevel != 0
+                    ? Math.Max(1, (int)Math.Round(fishSize * DifficultyCalculator.GetFishSizeMultiplier(difficultyLevel)))
+                    : fishSize;
 
                 // 保存数据供Postfix使用
                 _pendingFish[GetPendingKey(owner, normalizedFishId)] = new PendingFishData
@@ -341,13 +409,17 @@ namespace FishingExpanded.Patches
                     MissCount = missCount,
                     AdjustedDifficulty = adjustedDifficulty,
                     // 使用原生成功调用最终传入的尺寸；鱼在小游戏中逃跑时尺寸可能已经下降。
-                    FishSize = fishSize
+                    FishSize = recordedFishSize,
+                    WildBaitBonus = wildBaitBonus,
+                    ChallengeBonusActive = challengeBonusActive,
+                    HasChallengeBait = hasChallengeBait
                 };
 
                 ModEntry.ModMonitor.Log(
                     $"[FishingRod] 钓鱼成功（动画阶段）| 玩家: {owner.UniqueMultiplayerID} | 鱼ID: {normalizedFishId} | " +
                     $"难度等级: {difficultyLevel} | 数量倍数: {quantityMultiplier} | " +
-                    $"脱杆次数: {missCount} | 动画显示: {numCaught}条",
+                    $"脱杆次数: {missCount} | 动画显示: {numCaught}条 | 尺寸(原生→结算): {fishSize} → {recordedFishSize} | " +
+                    $"挑战鱼饵: {hasChallengeBait} | 万能加成: {wildBaitBonus} | 挑战加成(5分钟): {challengeBonusActive} | 耗时: {elapsedSeconds:F0}s",
                     LogLevel.Info);
             }
             catch (Exception ex)
@@ -378,14 +450,26 @@ namespace FishingExpanded.Patches
                 if (!isFinalFish)
                     return;
 
-                if (data.Multiplier > 1)
+                bool hasQuantityBonus = data.WildBaitBonus || data.ChallengeBonusActive || data.Multiplier > 1;
+                if (hasQuantityBonus)
                 {
                     int nativeStack = Math.Max(1, __result.Stack);
-                    long finalStack = (long)nativeStack * data.Multiplier;
+                    long finalStack = nativeStack;
+
+                    // BATCH-038: 万能鱼饵原本给两条鱼时 +10 条（难度等级>0）；挑战鱼饵 5 分钟内成功 ×1.5 向上取整。
+                    if (data.WildBaitBonus)
+                        finalStack = nativeStack + 10;
+                    else if (data.ChallengeBonusActive)
+                        finalStack = (long)Math.Ceiling(nativeStack * 1.5);
+
+                    if (data.Multiplier > 1)
+                        finalStack *= data.Multiplier;
+
                     __result.Stack = (int)Math.Min(int.MaxValue, finalStack);
                     ModEntry.ModMonitor.Log(
                         $"[FishingRod] 数量转化完成 | 玩家: {owner.UniqueMultiplayerID} | 鱼ID: {normalizedFishId} | " +
-                        $"原生堆叠: {nativeStack} → 最终: {__result.Stack} (×{data.Multiplier})",
+                        $"原生堆叠: {nativeStack} → 最终: {__result.Stack} | 万能加成: {data.WildBaitBonus} | " +
+                        $"挑战加成: {data.ChallengeBonusActive} | 等级倍数: ×{data.Multiplier}",
                         LogLevel.Info);
                 }
 
@@ -551,6 +635,39 @@ namespace FishingExpanded.Patches
     [HarmonyPatch(typeof(Farmer))]
     internal class FarmerFishingPatches
     {
+        /// <summary>BATCH-038: caughtFish Prefix - 收藏记录尺寸使用结算边界算好的乘后值（幂等：
+        /// doPullFishFromWater Postfix 已改字段时值相同；其他路径直接以 PendingFishData 为准）。</summary>
+        [HarmonyPatch(nameof(Farmer.caughtFish))]
+        [HarmonyPrefix]
+        public static void CaughtFish_Prefix(
+            Farmer __instance,
+            string itemId,
+            ref int size,
+            bool from_fish_pond)
+        {
+            try
+            {
+                if (from_fish_pond || !__instance.IsLocalPlayer || size <= 0)
+                    return;
+
+                string fishId = Utils.SpecialFishHelper.NormalizeItemId(itemId);
+                if (!FishingRodPatches.TryGetPending(__instance, fishId, out var data) || data.FishSize <= 0)
+                    return;
+
+                if (data.DifficultyLevel != 0 && data.FishSize != size)
+                {
+                    ModEntry.ModMonitor.Log(
+                        $"[Farmer] 收藏尺寸使用结算值 | 鱼ID: {fishId} | {size} → {data.FishSize}",
+                        LogLevel.Debug);
+                    size = data.FishSize;
+                }
+            }
+            catch (Exception ex)
+            {
+                ModEntry.ModMonitor.Log($"caughtFish Prefix 失败: {ex}", LogLevel.Error);
+            }
+        }
+
         /// <summary>caughtFish Postfix - 记录成功结算并登记展示事实</summary>
         [HarmonyPatch(nameof(Farmer.caughtFish))]
         [HarmonyPostfix]
@@ -590,6 +707,12 @@ namespace FishingExpanded.Patches
 
                 // 高难度星标必须在成功钓起后才写入；鱼王没有待处理数据，不会进入这里。
                 DifficultyManager.RecordHighDifficulty(fishId, data.AdjustedDifficulty, __instance);
+
+                // BATCH-038: 流动金色皇冠（难度等级≥95 且挑战鱼饵生效时成功；超 5 分钟只取消数量加成，皇冠照常）
+                if (data.DifficultyLevel >= 95 && data.HasChallengeBait)
+                {
+                    DifficultyManager.RecordChallengeCrown(fishId, __instance);
+                }
 
                 if (data.Multiplier > 15)
                 {

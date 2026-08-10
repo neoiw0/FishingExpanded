@@ -110,21 +110,23 @@ namespace FishingExpanded.Utils
             "你钓到了{1}厘米的{0}...这需要多少勇气！"
         };
 
-        /// <summary>生成随机的鱼赞美文案（i18n 优先，缺失时回退到内置中文列表）</summary>
+        /// <summary>生成随机的鱼赞美文案（i18n 优先，缺失时回退到内置中文列表）。
+        /// BATCH-033：尺寸统一显示厘米（fishSize×2.54 取整），与手持鱼旁原生尺寸数字一致。</summary>
         public static string GenerateFishPraise(string fishName, int fishSize)
         {
             try
             {
                 string[] templates = LoadPraiseTemplates();
+                int fishSizeCm = (int)Math.Round(fishSize * 2.54);
 
                 // Bug修复：Game1.random可能为null（极端情况）
                 if (Game1.random == null)
                 {
-                    return string.Format(templates[0], fishName, fishSize);
+                    return string.Format(templates[0], fishName, fishSizeCm);
                 }
 
                 int index = Game1.random.Next(templates.Length);
-                return string.Format(templates[index], fishName, fishSize);
+                return string.Format(templates[index], fishName, fishSizeCm);
             }
             catch (Exception ex)
             {

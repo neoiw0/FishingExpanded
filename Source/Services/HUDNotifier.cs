@@ -135,8 +135,11 @@ namespace FishingExpanded.Services
         /// <summary>显示已有图鉴星标鱼进入小游戏时的挑战宣言。</summary>
         public static void ShowStarChallengeNotification(string fishId, int difficultyLevel, Farmer player)
         {
+            // BATCH-033: 弱称号区间（难度等级 <1，即 0 和负数）即使已有收藏皇冠也不显示挑战宣言；
+            // 只有难度等级 >=1 且拥有收藏皇冠的鱼才显示（2026-08-08 用户确认）。
             if (Utils.SpecialFishHelper.IsLegendaryFish(fishId) ||
-                !DifficultyManager.HasCollectionStar(fishId, player))
+                !DifficultyManager.HasCollectionStar(fishId, player) ||
+                difficultyLevel < 1)
             {
                 return;
             }
@@ -195,10 +198,12 @@ namespace FishingExpanded.Services
             string fishName = GetFishDisplayName(fishId);
             string message;
 
-            // BATCH-029: 史诗提示优先（同鱼种连续失败 ≥2 次且调整后难度 ≥150）
+            // BATCH-029/038: 史诗提示优先（同鱼种连续失败 ≥2 次且调整后难度 ≥150；满皇冠 α=1 时
+            // 不再提示收集更多皇冠，改用“人鱼合一”文案——用户确认：满皇冠脱杆两次的高难度挑战）。
             if (isEpicChampion)
             {
-                message = ModEntry.ModHelper.Translation.Get("hud.fail.epic");
+                bool hasAllCrowns = DifficultyManager.GetAlpha(Game1.player) >= 1f;
+                message = ModEntry.ModHelper.Translation.Get(hasAllCrowns ? "hud.fail.union" : "hud.fail.epic");
             }
             // BATCH-013: 检测触底（等级-10）
             else if (currentLevel <= -10)
@@ -268,3 +273,4 @@ namespace FishingExpanded.Services
         }
     }
 }
+

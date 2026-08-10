@@ -1,0 +1,204 @@
+
+        /// <summary>update Prefix：动态修改蓄力槽减速倍率 + 追踪脱杆次数 + 力竭/挑战鱼饵（BATCH-038）</summary>
+        [HarmonyPatch(nameof(BobberBar.update))]
+        [HarmonyPrefix]
+        public static void Update_Prefix(
+            BobberBar __instance,
+            ref float ___difficulty,
+            ref float ___distanceFromCatchPenaltyModifier,
+            ref float ___bobberPosition,
+            ref float ___bobberTargetPosition,
+            ref float ___bobberSpeed,
+            float ___distanceFromCatching,
+            bool ___bobberInBar,
+            ref int ___fishSizeReductionTimer,
+            ref int ___challengeBaitFishes,
+            int ___xPositionOnScreen,
+            int ___yPositionOnScreen,
+            float ___bobberBarPos,
+            int ___bobberBarHeight)
+        {
+            try
+            {
+                if (!_instanceData.TryGetValue(__instance, out var data))
+                    return;
+
+                float dt = (float)Game1.currentGameTime.ElapsedGameTime.TotalSeconds;
+                if (dt <= 0f)
+                {
+                    dt = 1f / 60f;
+                }
+
+                // BATCH-038: 双提示通道计时（起点固定、2 秒内上移 30px 淡出；纯显示状态）
+                AgeTips(data.ActionTips, dt);
+                AgeTips(data.OtherTips, dt);
+
+                // BATCH-038: 力竭机制（调整后难度≥100 非鱼王非挑战鱼饵：难度随节点衰减；挑战鱼饵：不衰减但节点提示仍显示）。
+                // 计时只在小游戏进行中累计（dt 由 update 驱动，暂停/菜单不累计）。
+                if (data.AdjustedDifficulty >= 100f && !data.ResultStarted)
+                {
+                    data.ExhaustionElapsedSeconds += dt;
+
+                    // 节点提示：1/3/5/7/9/12/15 分钟各触发一次（挑战鱼饵时追加一句随机文案）
+                    while (data.NextExhaustionNodeIndex < DifficultyCalculator.ExhaustionNodes.Length &&
+                           data.ExhaustionElapsedSeconds >= DifficultyCalculator.ExhaustionNodes[data.NextExhaustionNodeIndex].Minute * 60f)
+                    {
+                        var node = DifficultyCalculator.ExhaustionNodes[data.NextExhaustionNodeIndex];
+                        data.NextExhaustionNodeIndex++;
+                        string rankName = ModEntry.ModHelper.Translation.Get(DifficultyCalculator.GetRankKey(data.DifficultyLevel));
+                        int textIndex = Game1.random.Next(1, 11);
+                        string key = $"hud.exhaust.{node.Minute:0}.{textIndex}";
+                        string text = ModEntry.ModHelper.Translation.Get(key, new { rankName });
+                        if (string.IsNullOrWhiteSpace(text) || text == key)
+                            text = $"[{rankName}]体力见底（{node.Minute:0}分钟）";
+                        if (data.HasChallengeBait)
+                        {
+                            int appendIndex = Game1.random.Next(1, 11);
+                            string appendKey = $"hud.exhaust.append.{appendIndex}";
+                            string appendText = ModEntry.ModHelper.Translation.Get(appendKey);
+                            if (string.IsNullOrWhiteSpace(appendText) || appendText == appendKey)
+                                appendText = "但这场对决，它还想继续";
+                            text = text + appendText;
+                        }
+                        AddTip(data.OtherTips, text,
+                            ___xPositionOnScreen + OtherTipAnchorX,
+                            ___yPositionOnScreen + 12f + ___bobberBarPos + ___bobberBarHeight / 2f,
+                            centered: false);
+                        ModEntry.ModMonitor.Log(
+                            $"[BobberBar] 力竭节点 | 实例: {__instance.GetHashCode()} | 鱼ID: {data.FishId} | " +
+                            $"节点: {node.Minute:0}分钟 ({node.Percent:P0}) | 耗时: {data.ExhaustionElapsedSeconds:F0}s | " +
+                            $"挑战鱼饵: {data.HasChallengeBait} | 文案: {text}",
+                            LogLevel.Info);
+                    }
+
+                    // 有效难度：挑战鱼饵下不衰减（保持开局调整后难度）；否则按节点线性衰减到 80。
+                    data.EffectiveDifficulty = data.HasChallengeBait
+                        ? data.AdjustedDifficulty
+                        : DifficultyCalculator.GetExhaustedDifficulty(data.AdjustedDifficulty, data.ExhaustionElapsedSeconds);
+                    if (Math.Abs(___difficulty - data.EffectiveDifficulty) > 0.001f)
+                    {
+                        ___difficulty = data.EffectiveDifficulty;
+                    }
+                }
+                else
+                {
+                    data.EffectiveDifficulty = data.AdjustedDifficulty;
+                }
+
+                // BATCH-038: 脱杆尺寸惩罚取消（难度等级>0）：重置原生缩水计时器，鱼尺寸不再随脱杆缩小。
+                if (data.DifficultyLevel > 0)
+                {
+                    ___fishSizeReductionTimer = 800;
+                }
+
+                // BATCH-038: 挑战鱼饵改版（调整后难度>100）：原生“3 次脱杆失败”禁用（重置剩余次数），
+                // 改为 5 分钟加成时限（超过 5 分钟只取消 50% 数量加成，不影响成功结算）。
+                if (data.HasChallengeBait && data.AdjustedDifficulty > 100f)
+                {
+                    ___challengeBaitFishes = 3;
+                }
+
+                // BATCH-010: 追踪脱杆次数（检测状态切换：从在绿条内到脱离）
+                if (data.WasBobberInBar && !___bobberInBar)
+                {
+                    // 鱼刚刚离开绿条，计为一次脱杆
+                    data.MissCount++;
+                }
+                data.WasBobberInBar = ___bobberInBar;
+
+                // BATCH-020: 全局蓄力槽保护（任意难度等级）
+                float oldModifier = ___distanceFromCatchPenaltyModifier;
+                // 字段值若不是上一帧由本 Mod 写入的值，视为原生或其他 Mod 更新了基准倍率。
+                if (Math.Abs(oldModifier - data.LastAppliedCatchPenaltyModifier) > 0.0001f)
+                {
+                    data.NativeCatchPenaltyModifier = oldModifier;
+                }
+
+                float newModifier = DifficultyCalculator.GetCatchPenaltyModifier(
+                    data.DifficultyLevel, ___distanceFromCatching);
+                float combinedModifier = Math.Min(data.NativeCatchPenaltyModifier, newModifier);
+                ___distanceFromCatchPenaltyModifier = combinedModifier;
+                data.LastAppliedCatchPenaltyModifier = combinedModifier;
+
+                // 只在减速倍率变化时记录（避免每帧输出）
+                if (Math.Abs(oldModifier - combinedModifier) > 0.01f)
+                {
+                    ModEntry.ModMonitor.Log(
+                        $"[BobberBar] 蓄力槽保护触发 | 实例: {__instance.GetHashCode()} | 等级: {data.DifficultyLevel} | " +
+                        $"蓄力进度: {___distanceFromCatching:P0} | 减速倍率: {oldModifier:F2} → {combinedModifier:F2}",
+                        LogLevel.Debug);
+                }
+
+                // BATCH-028/038: 高难度鱼跳机制（有效难度 150+ 或已有待完成跳跃，非鱼王；鱼王无 InstanceData 天然豁免）。
+                // 状态机：冷却（上次跳完成才重新计时）→ 每 1 秒检测上下 25% 区域 → 命中后 0.5 秒延迟
+                // → 瞬移到对侧 25% 区域内随机位置；延迟期间鱼游走仍照跳。
+                if ((data.EffectiveDifficulty >= 150f || data.JumpPending) && !data.ResultStarted)
+                {
+                    if (data.JumpPending)
+                    {
+                        data.JumpPendingSeconds -= dt;
+                        if (data.JumpPendingSeconds <= 0f)
+                        {
+                            // 瞬间位移：位置与目标同置，速度归零，避免跳后滑行。
+                            ___bobberPosition = data.JumpPendingTarget;
+                            ___bobberTargetPosition = data.JumpPendingTarget;
+                            ___bobberSpeed = 0f;
+                            data.JumpPending = false;
+                            data.JumpCooldownSeconds = data.JumpIntervalSeconds;
+                            data.JumpDetectionSeconds = 0f;
+
+                            // BATCH-034/038: 每次瞬移显示贴鱼动作提示（上跳目标区 0~133=鱼跃类，下跳目标区 399~532=甩尾类）；
+                            // 起点固定在触发瞬间（鱼落地位置上方 30px），2 秒内上移淡出，不再跟随鱼。
+                            bool jumpUp = data.JumpPendingTarget <= 133f;
+                            string jumpText = PickJumpText(jumpUp);
+                            AddTip(data.ActionTips, jumpText,
+                                ___xPositionOnScreen + 82f,
+                                ___yPositionOnScreen + 36f + data.JumpPendingTarget - 30f,
+                                centered: true);
+
+                            ModEntry.ModMonitor.Log(
+                                $"[BobberBar] 高难度鱼跳 | 实例: {__instance.GetHashCode()} | 鱼ID: {data.FishId} | " +
+                                $"难度: {data.EffectiveDifficulty:F0} | 跳至: {data.JumpPendingTarget:F0} | " +
+                                $"文案: {(jumpUp ? "上跳(鱼跃)" : "下跳(甩尾)")}: {jumpText}",
+                                LogLevel.Info);
+                        }
+                    }
+                    else if (data.JumpCooldownSeconds > 0f)
+                    {
+                        data.JumpCooldownSeconds -= dt;
+                        if (data.JumpCooldownSeconds < 0f)
+                        {
+                            data.JumpCooldownSeconds = 0f;
+                        }
+                    }
+                    else
+                    {
+                        // 冷却完成：统一每 1 秒检测一次鱼是否在上下 25% 区域。
+                        data.JumpDetectionSeconds -= dt;
+                        if (data.JumpDetectionSeconds <= 0f)
+                        {
+                            data.JumpDetectionSeconds = 1f;
+                            float fishPosition = ___bobberPosition;
+                            if (fishPosition >= 399f)
+                            {
+                                // 下 25% → 跳上 25%（0~133 随机位置）
+                                data.JumpPending = true;
+                                data.JumpPendingSeconds = 0.5f;
+                                data.JumpPendingTarget = Game1.random.Next(0, 134);
+                            }
+                            else if (fishPosition <= 133f)
+                            {
+                                // 上 25% → 跳下 25%（399~532 随机位置）
+                                data.JumpPending = true;
+                                data.JumpPendingSeconds = 0.5f;
+                                data.JumpPendingTarget = Game1.random.Next(399, 533);
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                ModEntry.ModMonitor.Log($"BobberBar.update Prefix 失败: {ex}", LogLevel.Error);
+            }
+        }

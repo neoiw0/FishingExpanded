@@ -16,6 +16,28 @@ namespace FishingExpanded.Services
         private const string PlayerDataKey = "FishingExpanded/FishDifficultyData";
         private const string LegacySaveDataKey = "FishDifficultyData";
 
+        /// <summary>BATCH-034: 手感进度 α 的分母 = 原生可计数真鱼 61 条（56 普通 + 5 原版传奇）。
+        /// 清单核对 `_analysis\Fish-data-extracted.txt`（含 Goby；不含 10 蟹笼与 3 藻类；扩展传奇 898–902 按普通鱼计数）。
+        /// Mod 鱼皇冠只显示、不计入 α。</summary>
+        public const int CountableCrownTarget = 61;
+
+        private static readonly HashSet<string> CountableFishIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "(O)128", "(O)129", "(O)130", "(O)131", "(O)132",
+            "(O)136", "(O)137", "(O)138", "(O)139", "(O)140",
+            "(O)141", "(O)142", "(O)143", "(O)144", "(O)145",
+            "(O)146", "(O)147", "(O)148", "(O)149", "(O)150",
+            "(O)151", "(O)154", "(O)155", "(O)156", "(O)158",
+            "(O)159", "(O)160", "(O)161", "(O)162", "(O)163",
+            "(O)164", "(O)165", "(O)267", "(O)269", "(O)682",
+            "(O)698", "(O)699", "(O)700", "(O)701", "(O)702",
+            "(O)704", "(O)705", "(O)706", "(O)707", "(O)708",
+            "(O)734", "(O)775", "(O)795", "(O)796", "(O)798",
+            "(O)799", "(O)800", "(O)836", "(O)837", "(O)838",
+            "(O)898", "(O)899", "(O)900", "(O)901", "(O)902",
+            "(O)Goby"
+        };
+
         private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true
@@ -61,7 +83,7 @@ namespace FishingExpanded.Services
 
             ModEntry.ModMonitor.Log(
                 $"[DifficultyManager] 加载玩家数据完成 | 玩家: {player.UniqueMultiplayerID} | 鱼种类数: {data.FishStatistics.Count} | " +
-                $"钓鱼等级加成: +{data.FishingLevelBonus:F1} | 星标鱼种: {data.CollectionStars.Count}",
+                $"皇冠鱼种: {data.CollectionStars.Count} | 可计数皇冠: {GetCountableCrownCount(player)}/{CountableCrownTarget}",
                 LogLevel.Info);
         }
 
@@ -222,12 +244,10 @@ namespace FishingExpanded.Services
                 if (!data.CollectionStars.Contains(normalizedFishId))
                 {
                     data.CollectionStars.Add(normalizedFishId);
-                    data.FishingLevelBonus = data.CollectionStars.Count * 0.5f;
 
                     ModEntry.ModMonitor.Log(
                         $"[DifficultyManager] ★ 达成高难度里程碑 ★ | 玩家: {player.UniqueMultiplayerID} | 鱼ID: {normalizedFishId} | " +
-                        $"调整后难度: {adjustedDifficulty:F1} | " +
-                        $"新增钓鱼等级加成: +0.5 | 总加成: +{data.FishingLevelBonus:F1}",
+                        $"调整后难度: {adjustedDifficulty:F1} | 可计数皇冠: {GetCountableCrownCount(player)}/{CountableCrownTarget}",
                         LogLevel.Warn); // Warn级别确保显眼
 
                     SaveData(player);
@@ -235,10 +255,143 @@ namespace FishingExpanded.Services
             }
         }
 
-        /// <summary>获取指定玩家钓鱼等级隐藏加成</summary>
-        public static float GetFishingLevelBonus(Farmer player)
+        /// <summary>测试工具（BATCH-032/034）：批量添加收藏皇冠。只从可计数原生普通鱼池（56 条，不含 5 条原版传奇）
+        /// 挑选，跳过已加星鱼；返回实际添加数量。</summary>
+        public static int AddCollectionStarsForTesting(Farmer player, int count)
         {
-            return GetData(player)?.FishingLevelBonus ?? 0f;
+            if (player == null || count <= 0)
+                return 0;
+
+            FishDifficultyData data = GetData(player);
+            if (data == null)
+                return 0;
+
+            int added = 0;
+            foreach (string fishId in BuildStarPool())
+            {
+                if (added >= count)
+                    break;
+                string normalizedFishId = Utils.SpecialFishHelper.NormalizeItemId(fishId);
+                if (string.IsNullOrEmpty(normalizedFishId) ||
+                    Utils.SpecialFishHelper.IsLegendaryFish(normalizedFishId) ||
+                    data.CollectionStars.Contains(normalizedFishId))
+                {
+                    continue;
+                }
+                data.CollectionStars.Add(normalizedFishId);
+                added++;
+            }
+
+            if (added > 0)
+            {
+                SaveData(player);
+            }
+            return added;
+        }
+
+        /// <summary>BATCH-034: 测试皇冠池 = 可计数原生真鱼 61 条中的普通鱼（剔除 5 条原版传奇），
+        /// 与 Mod 鱼/扩展传奇无关（Mod 鱼皇冠不计入手感进度 α）。</summary>
+        private static List<string> BuildStarPool()
+        {
+            var pool = new List<string>(CountableFishIds.Count);
+            foreach (string fishId in CountableFishIds)
+            {
+                if (!Utils.SpecialFishHelper.IsLegendaryFish(fishId))
+                    pool.Add(fishId);
+            }
+            return pool;
+        }
+
+        /// <summary>BATCH-034: 是否属于可计数原生真鱼（计入手感进度 α；Mod 鱼/蟹笼/藻类不计）。</summary>
+        public static bool IsCountableFish(string fishId)
+        {
+            string normalizedFishId = Utils.SpecialFishHelper.NormalizeItemId(fishId);
+            return !string.IsNullOrEmpty(normalizedFishId) && CountableFishIds.Contains(normalizedFishId);
+        }
+
+        /// <summary>BATCH-034: 玩家已收集的可计数皇冠数（派生自 CollectionStars ∩ 原生 61 鱼，无独立持久状态）。</summary>
+        public static int GetCountableCrownCount(Farmer player)
+        {
+            FishDifficultyData data = GetData(player);
+            if (data == null)
+                return 0;
+
+            int count = 0;
+            foreach (string fishId in data.CollectionStars)
+            {
+                if (IsCountableFish(fishId))
+                    count++;
+            }
+            return count;
+        }
+
+
+        /// <summary>BATCH-035: 玩家可计数皇冠鱼的鱼 ID 列表（CollectionStars ∩ 原生 61 鱼；Mod 鱼皇冠只显示、不参与助战）。</summary>
+        public static List<string> GetCountableStarredFish(Farmer player)
+        {
+            var result = new List<string>();
+            FishDifficultyData data = GetData(player);
+            if (data == null)
+                return result;
+
+            foreach (string fishId in data.CollectionStars)
+            {
+                if (IsCountableFish(fishId))
+                    result.Add(fishId);
+            }
+            return result;
+        }
+        /// <summary>BATCH-035: 助战鱼难度排位 r∈[0,1]（0=玩家可计数皇冠鱼中最低难度，1=最高难度；
+        /// 全部相同或列表为空时取 0.5=均匀）。只派生自现有 CollectionStars ∩ 原生 61 鱼的难度数据，无新持久状态。</summary>
+        public static double GetAssistRank(string fishId, Farmer player, List<string> countableStarred)
+        {
+            if (countableStarred == null || countableStarred.Count == 0)
+                return 0.5;
+
+            int min = int.MaxValue;
+            int max = int.MinValue;
+            foreach (string id in countableStarred)
+            {
+                int level = GetDifficultyLevel(id, player);
+                if (level < min) min = level;
+                if (level > max) max = level;
+            }
+            if (max <= min)
+                return 0.5;
+
+            int fishLevel = GetDifficultyLevel(fishId, player);
+            return Math.Max(0.0, Math.Min(1.0, (fishLevel - min) / (double)(max - min)));
+        }
+        /// <summary>BATCH-034: 手感进度 α = 可计数皇冠数 ÷ 61，钳制到 [0,1]（0=原生手感，1=终点手感）。</summary>
+        public static float GetAlpha(Farmer player)
+        {
+            return Math.Min(1f, GetCountableCrownCount(player) / (float)CountableCrownTarget);
+        }
+
+        /// <summary>BATCH-034: 原版 5 条传奇鱼钓到一次直接给皇冠（计入可计数皇冠；无难度门槛）。
+        /// 只在成功钓起边界（PullFishFromWater 传奇分支）调用，失败不调用。</summary>
+        public static void RecordLegendaryCatch(string fishId, Farmer player)
+        {
+            FishDifficultyData data = GetData(player);
+            if (data == null)
+            {
+                ModEntry.ModMonitor.Log("[DifficultyManager] ERROR: 玩家数据为null，无法记录传奇鱼皇冠", StardewModdingAPI.LogLevel.Error);
+                return;
+            }
+
+            string normalizedFishId = Utils.SpecialFishHelper.NormalizeItemId(fishId);
+            if (string.IsNullOrEmpty(normalizedFishId) || !Utils.SpecialFishHelper.IsLegendaryFish(normalizedFishId))
+                return;
+
+            if (!data.CollectionStars.Contains(normalizedFishId))
+            {
+                data.CollectionStars.Add(normalizedFishId);
+                ModEntry.ModMonitor.Log(
+                    $"[DifficultyManager] ★ 传奇鱼一次钓获皇冠 ★ | 玩家: {player.UniqueMultiplayerID} | 鱼ID: {normalizedFishId} | " +
+                    $"可计数皇冠: {GetCountableCrownCount(player)}/{CountableCrownTarget}",
+                    StardewModdingAPI.LogLevel.Warn);
+                SaveData(player);
+            }
         }
 
         /// <summary>检查指定玩家某种鱼是否有收藏星标</summary>
@@ -248,6 +401,58 @@ namespace FishingExpanded.Services
             FishDifficultyData data = GetData(player);
             return data != null && !string.IsNullOrEmpty(normalizedFishId) &&
                 data.CollectionStars.Contains(normalizedFishId);
+        }
+
+        /// <summary>BATCH-038: 指定玩家某种鱼是否有挑战皇冠（挑战鱼饵 + 难度等级≥95 成功；鱼王/无数据返回 false）</summary>
+        public static bool HasChallengeCrown(string fishId, Farmer player)
+        {
+            string normalizedFishId = Utils.SpecialFishHelper.NormalizeItemId(fishId);
+            FishDifficultyData data = GetData(player);
+            return data != null && !string.IsNullOrEmpty(normalizedFishId) &&
+                data.ChallengeCrowns.Contains(normalizedFishId);
+        }
+
+        /// <summary>BATCH-038: 记录挑战皇冠（挑战鱼饵生效且难度等级≥95 的成功结算边界调用一次；鱼王不参与）</summary>
+        public static void RecordChallengeCrown(string fishId, Farmer player)
+        {
+            string normalizedFishId = Utils.SpecialFishHelper.NormalizeItemId(fishId);
+            if (string.IsNullOrEmpty(normalizedFishId) || Utils.SpecialFishHelper.IsLegendaryFish(normalizedFishId))
+                return;
+
+            FishDifficultyData data = GetData(player);
+            if (data == null)
+            {
+                ModEntry.ModMonitor.Log("[DifficultyManager] ERROR: 玩家数据为null，无法记录挑战皇冠", StardewModdingAPI.LogLevel.Error);
+                return;
+            }
+
+            if (data.ChallengeCrowns.Add(normalizedFishId))
+            {
+                ModEntry.ModMonitor.Log(
+                    $"[DifficultyManager] ★ 挑战皇冠记录 ★ | 玩家: {player.UniqueMultiplayerID} | 鱼ID: {normalizedFishId} | " +
+                    $"挑战皇冠数: {data.ChallengeCrowns.Count}",
+                    StardewModdingAPI.LogLevel.Info);
+                SaveData(player);
+            }
+        }
+
+        /// <summary>BATCH-038: 测试工具：设置/清除指定鱼的挑战皇冠标记（写入存档，仅测试用）。</summary>
+        public static void SetChallengeCrown(string fishId, bool value, Farmer player)
+        {
+            string normalizedFishId = Utils.SpecialFishHelper.NormalizeItemId(fishId);
+            if (string.IsNullOrEmpty(normalizedFishId) || Utils.SpecialFishHelper.IsLegendaryFish(normalizedFishId))
+                return;
+
+            FishDifficultyData data = GetData(player);
+            if (data == null)
+                return;
+
+            if (value) data.ChallengeCrowns.Add(normalizedFishId);
+            else data.ChallengeCrowns.Remove(normalizedFishId);
+            ModEntry.ModMonitor.Log(
+                $"[DifficultyManager] 已设置挑战皇冠 | 玩家: {player.UniqueMultiplayerID} | 鱼ID: {normalizedFishId} | 值: {value}",
+                StardewModdingAPI.LogLevel.Info);
+            SaveData(player);
         }
 
         /// <summary>直接设置指定玩家某种鱼的难度等级（用于测试）</summary>
@@ -327,7 +532,6 @@ namespace FishingExpanded.Services
 
             data.FishStatistics.Clear();
             data.CollectionStars.Clear();
-            data.FishingLevelBonus = 0f;
 
             ModEntry.ModMonitor.Log("[DifficultyManager] 已清空所有数据", StardewModdingAPI.LogLevel.Info);
             SaveData(player);
@@ -350,11 +554,10 @@ namespace FishingExpanded.Services
             if (!data.CollectionStars.Contains(normalizedFishId))
             {
                 data.CollectionStars.Add(normalizedFishId);
-                data.FishingLevelBonus = data.CollectionStars.Count * 0.5f;
 
                 ModEntry.ModMonitor.Log(
                     $"[DifficultyManager] ★ 添加收藏星标 ★ | 玩家: {player.UniqueMultiplayerID} | 鱼ID: {normalizedFishId} | " +
-                    $"新增钓鱼等级加成: +0.5 | 总加成: +{data.FishingLevelBonus:F1}",
+                    $"可计数皇冠: {GetCountableCrownCount(player)}/{CountableCrownTarget}",
                     StardewModdingAPI.LogLevel.Warn);
 
                 SaveData(player);
@@ -367,7 +570,7 @@ namespace FishingExpanded.Services
             }
         }
 
-        /// <summary>获取指定玩家收藏星标总数</summary>
+        /// <summary>获取指定玩家收藏皇冠总数（含 Mod 鱼与传奇鱼）</summary>
         public static int GetCollectionStarCount(Farmer player)
         {
             return GetData(player)?.CollectionStars.Count ?? 0;
@@ -429,13 +632,22 @@ namespace FishingExpanded.Services
             foreach (string fishId in data.CollectionStars ?? new HashSet<string>())
             {
                 string normalizedFishId = Utils.SpecialFishHelper.NormalizeItemId(fishId);
-                if (!string.IsNullOrEmpty(normalizedFishId) && !Utils.SpecialFishHelper.IsLegendaryFish(normalizedFishId))
+                // BATCH-034: 传奇鱼皇冠合法（一次钓获），不再排除
+                if (!string.IsNullOrEmpty(normalizedFishId))
                     normalizedStars.Add(normalizedFishId);
+            }
+
+            var normalizedChallengeCrowns = new HashSet<string>();
+            foreach (string fishId in data.ChallengeCrowns ?? new HashSet<string>())
+            {
+                string normalizedFishId = Utils.SpecialFishHelper.NormalizeItemId(fishId);
+                if (!string.IsNullOrEmpty(normalizedFishId) && !Utils.SpecialFishHelper.IsLegendaryFish(normalizedFishId))
+                    normalizedChallengeCrowns.Add(normalizedFishId);
             }
 
             data.FishStatistics = normalizedStats;
             data.CollectionStars = normalizedStars;
-            data.FishingLevelBonus = normalizedStars.Count * 0.5f;
+            data.ChallengeCrowns = normalizedChallengeCrowns;
         }
 
         private static int SaturatingAdd(int left, int right)
@@ -445,3 +657,4 @@ namespace FishingExpanded.Services
         }
     }
 }
+

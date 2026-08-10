@@ -40,6 +40,13 @@
 - 存档：无新增存档字段；掉落物走原生背包/溢出。
 - 部署对应性：无 Harmony 新补丁，仅修改既有边界内代码；部署前核对当前安装 DLL。
 
+## 测试工具增强（2026-08-08，用户测试中要求）
+
+- 新增命令 `fish_addstars <数量>`：一次给当前玩家批量添加收藏星标（每颗 +0.5 钓鱼条长度额外加成）。
+- 自动从当前安装 `Data/Fish` 挑选普通鱼（跳过 5 只鱼王与已加星鱼），失败回退内置测试池（128~158）；返回实际添加数，鱼池不足时提示。
+- 唯一写入者不变：`DifficultyManager.AddCollectionStarsForTesting` → `SaveData(player)`，与星标/加成既有所有权一致；图鉴皇冠、`fish_bonus`、挑战宣言同步反映。
+- 部署：DLL `9AE5B858...`（2026-08-08 19:43，备份 `DeploymentBackups\FishingExpanded-20260808-194306-pre-ADDSTARS`）；i18n/manifest 未变；`TESTING-GUIDE.md` 命令总览已更新。
+- 检查点：本轮未提交（等用户测试验收后与后续修复统一提交，避免反复提交）。
 ## Closeout/静态门禁
 
 - 治理同步：`GAME-DESIGN.md`、`BUG-LEDGER.md`、`TESTING.md`、本卡。

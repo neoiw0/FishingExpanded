@@ -3,17 +3,17 @@ using System.Collections.Generic;
 
 namespace FishingExpanded.Data
 {
-    /// <summary>当前玩家的鱼难度、收藏星标和隐藏钓鱼等级加成</summary>
+    /// <summary>当前玩家的鱼难度与收藏皇冠（BATCH-034：隐藏钓鱼等级加成已整体删除）</summary>
     public class FishDifficultyData
     {
         /// <summary>鱼的统计数据字典，键为鱼的QualifiedItemId</summary>
         public Dictionary<string, FishStats> FishStatistics { get; set; } = new Dictionary<string, FishStats>();
 
-        /// <summary>钓鱼等级隐藏加成（每达标一种鱼+0.5）</summary>
-        public float FishingLevelBonus { get; set; } = 0f;
-
-        /// <summary>已达到difficulty≥120的鱼种类（用于Collections星标）</summary>
+        /// <summary>已获得收藏皇冠的鱼种类（用于Collections皇冠与手感进度α计数；含原版传奇一次钓获与Mod鱼）</summary>
         public HashSet<string> CollectionStars { get; set; } = new HashSet<string>();
+
+        /// <summary>BATCH-038: 挑战鱼饵成功且难度等级≥95的鱼（图鉴皇冠以流动金色绘制；旧存档缺失默认空）</summary>
+        public HashSet<string> ChallengeCrowns { get; set; } = new HashSet<string>();
     }
 
     /// <summary>单种鱼的统计数据</summary>

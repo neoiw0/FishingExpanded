@@ -4,13 +4,10 @@
     <TargetFramework>net6.0</TargetFramework>
     <Nullable>disable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
-    <AssemblyName>Batch029TranspilerCheck</AssemblyName>
-    <RootNamespace>Batch029TranspilerCheck</RootNamespace>
+    <AssemblyName>Batch035AssistCheck</AssemblyName>
+    <RootNamespace>Batch035AssistCheck</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="0Harmony">
-      <HintPath>D:\GGGGG\K1515\smapi-internal\0Harmony.dll</HintPath>
-    </Reference>
     <Reference Include="StardewModdingAPI">
       <HintPath>D:\GGGGG\K1515\StardewModdingAPI.dll</HintPath>
     </Reference>
