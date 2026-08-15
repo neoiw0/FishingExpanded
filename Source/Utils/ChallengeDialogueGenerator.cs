@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using StardewValley;
+using FishingExpanded.Services;
 
 namespace FishingExpanded.Utils
 {
@@ -58,7 +59,7 @@ namespace FishingExpanded.Utils
             }
             catch (Exception ex)
             {
-                ModEntry.ModMonitor.Log($"[ChallengeDialogue] 生成挑战宣言失败: {ex.Message}", StardewModdingAPI.LogLevel.Error);
+                FishingLog.Log($"[ChallengeDialogue] 生成挑战宣言失败: {ex.Message}", StardewModdingAPI.LogLevel.Error);
                 return $"可敬的{fishName ?? "未知鱼类"}毅然决然应战。";
             }
         }

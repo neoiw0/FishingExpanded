@@ -28,52 +28,42 @@ namespace FishingExpanded.Utils
             return Lerp(1f, 1.2f, level / 4f);
         }
 
-        /// <summary>计算获得数量倍数</summary>
-        /// <param name="level">难度等级 [0, 100]</param>
-        /// <returns>数量倍数（负数等级返回1）</returns>
+        /// <summary>计算获得数量倍数（BATCH-062：难度等级×1，0/负等级=1，100 级=100；覆盖 BATCH-060 的 round(level×0.5)）</summary>
+        /// <param name="level">难度等级 [-10, 100]</param>
+        /// <returns>数量倍数（0 级及以下返回 1）</returns>
         public static int GetQuantityMultiplier(int level)
         {
             if (level <= 0) return 1;
-
-            // [0, 100] -> [1, 200]
-            return (int)Math.Round(Lerp(1f, 200f, level / 100f));
+            return level;
         }
 
-        /// <summary>计算经验倍数</summary>
+        /// <summary>计算经验倍数（BATCH-060 公式保持：max(1, round(level×0.5))；BATCH-062 与数量倍数解耦）</summary>
         /// <param name="level">难度等级 [0, 100]</param>
         /// <returns>经验倍数（负数等级返回1）</returns>
         public static int GetExperienceMultiplier(int level)
         {
-            // 与数量倍数相同
-            return GetQuantityMultiplier(level);
+            if (level <= 0) return 1;
+            return (int)Math.Max(1, Math.Round(level * 0.5, MidpointRounding.AwayFromZero));
         }
 
-        /// <summary>计算品质提升级数</summary>
-        /// <param name="level">难度等级 [0, 100]</param>
-        /// <returns>品质提升级数</returns>
-        public static int GetQualityBonus(int level)
+        /// <summary>BATCH-060: 品质门槛（提升到式，非累加）：10 级→银、25 级→金、50 级→铱；10 级以下不提升。</summary>
+        /// <param name="level">难度等级 [-10, 100]</param>
+        /// <returns>门槛品质：0=普通, 1=银, 2=金, 4=铱</returns>
+        public static int GetQualityTier(int level)
         {
-            if (level <= 0) return 0;
-
-            // 每5级提升1级品质
-            return level / 5;
+            if (level >= 50) return 4; // 铱
+            if (level >= 25) return 2; // 金
+            if (level >= 10) return 1; // 银
+            return 0;
         }
 
-        /// <summary>应用品质提升（0→1→2→4，最高铱星）</summary>
-        /// <param name="baseQuality">原始品质</param>
+        /// <summary>应用品质门槛（BATCH-060：最终品质 = max(原品质, 等级门槛)；合法品质映射 0/1/2/4）。</summary>
+        /// <param name="baseQuality">原始品质（0/1/2/4）</param>
         /// <param name="level">难度等级</param>
         /// <returns>最终品质</returns>
         public static int ApplyQualityBonus(int baseQuality, int level)
         {
-            int bonus = GetQualityBonus(level);
-            int finalQuality = baseQuality + bonus;
-
-            // 钳制到合法品质值：0=普通, 1=银, 2=金, 4=铱
-            if (finalQuality >= 3)
-            {
-                return 4; // 铱星
-            }
-            return Math.Min(finalQuality, 2); // 最高金星（如果不够3）
+            return Math.Max(baseQuality, GetQualityTier(level));
         }
 
         /// <summary>计算尺寸数字倍率（BATCH-029：正等级每级 +10%，负等级每级 -5%，与数量倍数解耦）</summary>
@@ -88,16 +78,15 @@ namespace FishingExpanded.Utils
             return 1f;
         }
 
-        /// <summary>计算视觉缩放倍数（线性：0级=1.0，100级=原25级大小，BATCH-026）</summary>
-        /// <param name="quantityMultiplier">数量倍数</param>
-        /// <returns>绘制缩放倍数</returns>
-        public static float GetVisualScale(int quantityMultiplier)
+        /// <summary>计算视觉缩放倍数（BATCH-060：与数量倍数解耦，改按难度等级线性；0 级=1.0、100 级≈3.7084）</summary>
+        /// <param name="level">难度等级 [-10, 100]</param>
+        /// <returns>绘制缩放倍数（0 级及以下=1）</returns>
+        public static float GetVisualScale(int level)
         {
-            if (quantityMultiplier <= 1) return 1f;
+            if (level <= 0) return 1f;
 
-            // 线性缩放：倍数200（等级100）→ 原25级大小 51^(1/3) ≈ 3.70843
-            // 斜率 = (3.70843 - 1) / 199 ≈ 0.0136102；换算到每级 ≈ +0.0270843
-            return 1f + (quantityMultiplier - 1) * 0.0136102f;
+            // 保持 BATCH-026 定稿端点：100 级 = 原 25 级大小 51^(1/3) ≈ 3.70843；每级 ≈ +0.0270843
+            return Math.Min(3.70843f, 1f + level * 0.0270843f);
         }
 
 
@@ -176,6 +165,20 @@ namespace FishingExpanded.Utils
 
             // 取效果大的（最小倍率）
             return Math.Min(globalModifier, negativeModifier);
+        }
+
+        /// <summary>BATCH-051: 非挑战鱼饵、调整后难度>100 的连续失败逃跑减速倍率。
+        /// 从“当前等级原倍率”向“-10 级等效倍率”按连续失败次数线性插值（0 次=原倍率，5 次及以上=-10 级等效）；
+        /// 因 -10 级等效倍率在蓄力进度>40% 时≈1.0，本加成天然只在“鱼快逃跑”（条低）时起作用。</summary>
+        /// <param name="level">当前难度等级</param>
+        /// <param name="consecutiveFails">该鱼连续失败次数</param>
+        /// <param name="catchProgress">蓄力槽进度 [0,1]</param>
+        public static float GetEscapeFailBonusModifier(int level, int consecutiveFails, float catchProgress)
+        {
+            float baseModifier = GetCatchPenaltyModifier(level, catchProgress);
+            float targetModifier = GetCatchPenaltyModifier(-10, catchProgress);
+            float t = Math.Clamp(consecutiveFails / 5f, 0f, 1f);
+            return Lerp(baseModifier, targetModifier, t);
         }
 
         /// <summary>BATCH-038: 力竭机制节点（分钟 → 调整百分比）。15 分钟=100%（难度降到 80）；节点间线性。</summary>

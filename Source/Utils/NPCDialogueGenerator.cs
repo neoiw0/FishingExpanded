@@ -1,5 +1,6 @@
 using System;
 using StardewValley;
+using FishingExpanded.Services;
 
 namespace FishingExpanded.Utils
 {
@@ -130,7 +131,7 @@ namespace FishingExpanded.Utils
             }
             catch (Exception ex)
             {
-                ModEntry.ModMonitor.Log(
+                FishingLog.Log(
                     $"[NPCDialogue] 生成对话失败 | 错误: {ex.Message}",
                     StardewModdingAPI.LogLevel.Error);
                 return $"哇！这条{fishName}真大！";

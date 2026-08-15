@@ -1,0 +1,18 @@
+# BATCH-052 物品 ID 证据（2026-08-12）
+
+来源：D:\GGGGG\codex working space\StardewWikiMirror\wiki\ns8\18984_MediaWiki_Tools_list-1.js.wiki
+（Wiki“物品编号查询”工具数据，用户提醒的项目内镜像）
+
+- ID [227] EN=Sashimi ZH=生鱼片
+- ID [228] EN=Maki Roll ZH=生鱼寿司（无钓鱼加成）
+- ID [242] EN=Dish O' The Sea ZH=海之菜肴（钓鱼 +3）
+- ID [727] EN=Chowder ZH=海鲜杂烩汤
+- ID [728] EN=Fish Stew ZH=烩鱼汤（钓鱼 +3）
+- ID [729] EN=Escargot ZH=法式田螺
+- ID [730] EN=Lobster Bisque ZH=龙虾浓汤（钓鱼 +3）
+
+运行时日志：C:\Users\braveturtle\AppData\Roaming\StardewValley\ErrorLogs\SMAPI-latest.txt:7797
+[15:40:51] 持久战奖励 | 实例: 62331865 | 鱼ID: (O)137 | 耗时: 34s | 奖励: 生鱼寿司
+（与 (O)228=Maki Roll/生鱼寿司 运行时行为一致，证明旧池 228 填错）
+
+修复：PerseverancePlusThreeFoods = { "(O)242", "(O)728", "(O)730" }（BATCH-052）

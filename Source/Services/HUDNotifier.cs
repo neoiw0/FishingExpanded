@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using StardewValley;
+using FishingExpanded.Services;
 using StardewValley.ItemTypeDefinitions;
 using FishingExpanded.Utils;
 
@@ -64,7 +65,7 @@ namespace FishingExpanded.Services
             }
             catch (Exception ex)
             {
-                ModEntry.ModMonitor.Log($"HUD 提示队列驱动失败: {ex}", StardewModdingAPI.LogLevel.Error);
+                FishingLog.Log($"HUD 提示队列驱动失败: {ex}", StardewModdingAPI.LogLevel.Error);
             }
         }
 
@@ -87,7 +88,7 @@ namespace FishingExpanded.Services
                 string legendaryMessage = Utils.SpecialFishHelper.GetRandomLegendaryMessage();
                 EnqueueMessage(Game1.player, new HUDMessage(legendaryMessage, HUDMessage.achievement_type));
 
-                ModEntry.ModMonitor.Log(
+                FishingLog.Log(
                     $"[HUDNotifier] 传奇鱼提示 | 鱼ID: {fishId} | 文案: {legendaryMessage}",
                     StardewModdingAPI.LogLevel.Info);
                 return;
@@ -95,9 +96,8 @@ namespace FishingExpanded.Services
 
             string fishName = GetFishDisplayName(fishId);
 
-            // BATCH-015: 检测非鱼类封顶（等级8）
-            var itemData = StardewValley.ItemRegistry.GetDataOrErrorItem(fishId);
-            bool isNonFish = itemData != null && Utils.SpecialFishHelper.IsNonFish(itemData.Category);
+            // BATCH-015: 检测非鱼类封顶（等级8）；BATCH-065: 蟹笼鱼经 IsNonFishItem 归入非鱼（同一判定所有者）
+            bool isNonFish = DifficultyManager.IsNonFishItem(fishId);
             int maxLevel = isNonFish ? Utils.SpecialFishHelper.GetMaxLevelForNonFish() : 100;
 
             string message;
@@ -126,7 +126,7 @@ namespace FishingExpanded.Services
 
             EnqueueMessage(Game1.player, new HUDMessage(message, HUDMessage.newQuest_type));
 
-            ModEntry.ModMonitor.Log(
+            FishingLog.Log(
                 $"[HUDNotifier] 成功提示显示 | 鱼: {fishName} ({fishId}) | " +
                 $"等级: {newLevel} | 封顶: {newLevel >= maxLevel} | 非鱼类: {isNonFish}",
                 StardewModdingAPI.LogLevel.Debug);
@@ -148,7 +148,7 @@ namespace FishingExpanded.Services
             string message = ChallengeDialogueGenerator.Generate(fishName, difficultyLevel);
             EnqueueMessage(player, new HUDMessage(message, HUDMessage.newQuest_type));
 
-            ModEntry.ModMonitor.Log(
+            FishingLog.Log(
                 $"[HUDNotifier] 星标鱼挑战宣言 | 鱼: {fishName} ({fishId}) | 等级: {difficultyLevel} | 文案: {message}",
                 StardewModdingAPI.LogLevel.Debug);
         }
@@ -177,7 +177,7 @@ namespace FishingExpanded.Services
                 }
 
                 EnqueueMessage(player, new HUDMessage(message, HUDMessage.error_type));
-                ModEntry.ModMonitor.Log(
+                FishingLog.Log(
                     $"[HUDNotifier] 钓鱼等级建议 | 玩家: {player.UniqueMultiplayerID} | " +
                     $"鱼等级: {difficultyLevel} | 建议等级: {recommendedLevelText} | 当前钓鱼等级: {fishingLevel} | " +
                     $"不可能挑战: {recommendedLevel > fishingLevel * 2f}",
@@ -185,7 +185,7 @@ namespace FishingExpanded.Services
             }
             catch (Exception ex)
             {
-                ModEntry.ModMonitor.Log($"钓鱼等级建议提示失败: {ex}", StardewModdingAPI.LogLevel.Error);
+                FishingLog.Log($"钓鱼等级建议提示失败: {ex}", StardewModdingAPI.LogLevel.Error);
             }
         }
 
@@ -221,7 +221,7 @@ namespace FishingExpanded.Services
 
             EnqueueMessage(Game1.player, new HUDMessage(message, HUDMessage.error_type));
 
-            ModEntry.ModMonitor.Log(
+            FishingLog.Log(
                 $"[HUDNotifier] 失败提示显示 | 鱼: {fishName} ({fishId}) | " +
                 $"等级: {currentLevel} | 触底: {currentLevel <= -10} | 史诗提示: {isEpicChampion}",
                 StardewModdingAPI.LogLevel.Debug);
@@ -237,13 +237,80 @@ namespace FishingExpanded.Services
                 string message = ModEntry.ModHelper.Translation.Get($"hud.starfruitTea.{index}", new { fishName });
                 EnqueueMessage(Game1.player, new HUDMessage(message, HUDMessage.newQuest_type));
 
-                ModEntry.ModMonitor.Log(
+                FishingLog.Log(
                     $"[HUDNotifier] 星之果茶掉落提示 | 鱼: {fishName} ({fishId}) | 文案: #{index}",
                     StardewModdingAPI.LogLevel.Debug);
             }
             catch (Exception ex)
             {
-                ModEntry.ModMonitor.Log($"星之果茶掉落提示失败: {ex}", StardewModdingAPI.LogLevel.Error);
+                FishingLog.Log($"星之果茶掉落提示失败: {ex}", StardewModdingAPI.LogLevel.Error);
+            }
+        }
+
+        /// <summary>BATCH-039: 持久战安慰奖励提示（20 条文案随机，含鱼名+职阶，与其他提示一起排队显示）。</summary>
+        /// <param name="fishId">鱼的QualifiedItemId</param>
+        /// <param name="level">本次小游戏难度等级（用于职阶称号）</param>
+        public static void ShowPerseveranceRewardNotification(string fishId, int level)
+        {
+            try
+            {
+                string fishName = GetFishDisplayName(fishId);
+                string rankName = ModEntry.ModHelper.Translation.Get(DifficultyCalculator.GetRankKey(level));
+                int index = Game1.random.Next(1, 21);
+                string key = $"hud.battleReward.{index}";
+                string message = ModEntry.ModHelper.Translation.Get(key, new { fishName, rankName });
+                if (string.IsNullOrWhiteSpace(message) || message == key)
+                    message = $"{fishName}{rankName}希望下次能更尽兴些";
+
+                EnqueueMessage(Game1.player, new HUDMessage(message, HUDMessage.newQuest_type));
+
+                FishingLog.Log(
+                    $"[HUDNotifier] 持久战奖励提示 | 鱼: {fishName} ({fishId}) | 文案: #{index}",
+                    StardewModdingAPI.LogLevel.Debug);
+            }
+            catch (Exception ex)
+            {
+                FishingLog.Log($"持久战奖励提示失败: {ex}", StardewModdingAPI.LogLevel.Error);
+            }
+        }
+
+        /// <summary>BATCH-060（2026-08-15 用户确认）: 挑战鱼饵掉星提示——5:00 起每分钟掉 1 颗时在左下角 FIFO 队列提示
+        /// （小游戏期间可见），告知剩余星数与鱼获减少百分比；难度等级 ≥95 豁免不掉星，天然不触发。</summary>
+        /// <param name="stars">剩余挑战星数（2/1/0）</param>
+        public static void ShowChallengeStarLoss(int stars)
+        {
+            try
+            {
+                int percent = (3 - stars) * 20;
+                string message = ModEntry.ModHelper.Translation.Get("hud.starLoss", new { stars, percent });
+                EnqueueMessage(Game1.player, new HUDMessage(message, HUDMessage.error_type));
+
+                FishingLog.Log(
+                    $"[HUDNotifier] 挑战星掉落提示 | 剩余星: {stars}/3 | 鱼获减少: -{percent}%",
+                    StardewModdingAPI.LogLevel.Info);
+            }
+            catch (Exception ex)
+            {
+                FishingLog.Log($"挑战星掉落提示失败: {ex}", StardewModdingAPI.LogLevel.Error);
+            }
+        }
+
+        /// <summary>BATCH-061: 每日收获限额提示（Mod 鱼/非鱼类达到 333/天后再钓到；每类每天首次触发，FIFO 队列）。</summary>
+        public static void ShowDailyLimitReached(string fishId)
+        {
+            try
+            {
+                string fishName = GetFishDisplayName(fishId);
+                string message = ModEntry.ModHelper.Translation.Get("hud.dailyLimit", new { fishName });
+                EnqueueMessage(Game1.player, new HUDMessage(message, HUDMessage.newQuest_type));
+
+                FishingLog.Log(
+                    $"[HUDNotifier] 每日收获限额提示 | 鱼: {fishName} ({fishId})",
+                    StardewModdingAPI.LogLevel.Debug);
+            }
+            catch (Exception ex)
+            {
+                FishingLog.Log($"每日收获限额提示失败: {ex}", StardewModdingAPI.LogLevel.Error);
             }
         }
 
@@ -256,7 +323,7 @@ namespace FishingExpanded.Services
                 // Bug修复：DisplayName可能为null或空
                 if (itemData == null || string.IsNullOrEmpty(itemData.DisplayName))
                 {
-                    ModEntry.ModMonitor.Log(
+                    FishingLog.Log(
                         $"[HUDNotifier] 警告：无法获取鱼名称 | 鱼ID: {fishId}",
                         StardewModdingAPI.LogLevel.Warn);
                     return "未知鱼类";
@@ -265,7 +332,7 @@ namespace FishingExpanded.Services
             }
             catch (Exception ex)
             {
-                ModEntry.ModMonitor.Log(
+                FishingLog.Log(
                     $"[HUDNotifier] 获取鱼名称失败 | 鱼ID: {fishId} | 错误: {ex.Message}",
                     StardewModdingAPI.LogLevel.Error);
                 return "未知鱼类";

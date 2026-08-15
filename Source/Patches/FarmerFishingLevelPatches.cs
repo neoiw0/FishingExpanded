@@ -1,6 +1,7 @@
 using System;
 using HarmonyLib;
 using StardewValley;
+using FishingExpanded.Services;
 using StardewModdingAPI;
 
 namespace FishingExpanded.Patches
@@ -25,20 +26,27 @@ namespace FishingExpanded.Patches
                     return;
                 }
 
+                // BATCH-061: 每日收获限额——本次收获超限（数量已在 CreateFish 边界清零），经验一并置零。
+                if (pendingFish.HarvestLimited)
+                {
+                    howMuch = 0;
+                    return;
+                }
+
                 int multiplier = pendingFish.ExperienceMultiplier;
                 if (multiplier <= 1)
                     return;
 
                 long adjustedExperience = (long)howMuch * multiplier;
                 howMuch = (int)Math.Min(int.MaxValue, adjustedExperience);
-                ModEntry.ModMonitor.Log(
+                FishingLog.Log(
                     $"[FarmerFishingExperience] 经验倍率 | 难度等级: {pendingFish.DifficultyLevel} | " +
                     $"倍率: ×{multiplier} | 经验: {adjustedExperience / multiplier} → {howMuch}",
                     LogLevel.Debug);
             }
             catch (Exception ex)
             {
-                ModEntry.ModMonitor.Log($"Fishing experience patch 失败: {ex}", LogLevel.Error);
+                FishingLog.Log($"Fishing experience patch 失败: {ex}", LogLevel.Error);
             }
         }
     }

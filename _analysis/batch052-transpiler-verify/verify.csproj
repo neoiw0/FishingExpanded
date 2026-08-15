@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>TranspilerVerify</AssemblyName>
+    <RootNamespace>TranspilerVerify</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="0Harmony">
+      <HintPath>D:\GGGGG\K1515\smapi-internal\0Harmony.dll</HintPath>
+    </Reference>
+    <Reference Include="Stardew Valley">
+      <HintPath>D:\GGGGG\K1515\Stardew Valley.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+</Project>

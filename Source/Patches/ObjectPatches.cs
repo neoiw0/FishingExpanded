@@ -17,30 +17,6 @@ namespace FishingExpanded.Patches
     internal class ObjectPatches
     {
         private static bool _transpilerLogged = false;
-        private static readonly Dictionary<string, string> _visualDiagnosticStates =
-            new Dictionary<string, string>();
-
-        /// <summary>清理手持绘制诊断状态，避免跨存档复用旧键。</summary>
-        internal static void ResetVisualDiagnostics()
-        {
-            _visualDiagnosticStates.Clear();
-        }
-
-        /// <summary>记录一次视觉链路状态变化；禁止逐帧输出。</summary>
-        internal static void LogVisualDiagnostic(string stage, string identity, string state)
-        {
-            string key = $"{stage}|{identity}";
-            if (_visualDiagnosticStates.TryGetValue(key, out string previousState) &&
-                string.Equals(previousState, state, StringComparison.Ordinal))
-            {
-                return;
-            }
-
-            _visualDiagnosticStates[key] = state;
-            ModEntry.ModMonitor.Log(
-                $"[DIAG-FISH-VISUAL] stage={stage} | id={identity} | {state}",
-                LogLevel.Debug);
-        }
 
         /// <summary>Transpiler: 修改 Object.drawWhenHeld() 中的scale参数从4f变为4f*visualScale</summary>
         [HarmonyPatch(nameof(StardewValley.Object.drawWhenHeld))]
@@ -49,7 +25,7 @@ namespace FishingExpanded.Patches
         {
             var codes = instructions.ToList();
 
-            ModEntry.ModMonitor.Log(
+            FishingLog.Log(
                 $"[ObjectPatches] 开始分析 Object.drawWhenHeld() | 总指令数: {codes.Count}",
                 LogLevel.Debug);
 
@@ -76,7 +52,7 @@ namespace FishingExpanded.Patches
 
                     if (!_transpilerLogged)
                     {
-                        ModEntry.ModMonitor.Log(
+                        FishingLog.Log(
                             $"[ObjectPatches] ✓ 成功插入视觉缩放逻辑到 Object.drawWhenHeld() | 位置: IL_{i:X4}",
                             LogLevel.Info);
                         _transpilerLogged = true;
@@ -90,13 +66,13 @@ namespace FishingExpanded.Patches
 
             if (patchCount == 0)
             {
-                ModEntry.ModMonitor.Log(
+                FishingLog.Log(
                     "[ObjectPatches] ⚠ 未找到 ldc.r4 4 指令，视觉缩放可能无效",
                     LogLevel.Warn);
             }
             else
             {
-                ModEntry.ModMonitor.Log(
+                FishingLog.Log(
                     $"[ObjectPatches] ✓ 共修改了 {patchCount} 处 scale 参数",
                     LogLevel.Info);
             }
@@ -113,17 +89,8 @@ namespace FishingExpanded.Patches
             try
             {
                 string fishId = __instance?.QualifiedItemId ?? "<null>";
-                long playerId = f?.UniqueMultiplayerID ?? -1L;
                 int? category = __instance?.Category;
                 bool isFishCategory = category == StardewValley.Object.FishCategory;
-                bool isActiveObject = f != null && ReferenceEquals(f.ActiveObject, __instance);
-
-                LogVisualDiagnostic(
-                    "Object.drawWhenHeld",
-                    $"{playerId}:{fishId}",
-                    $"category={category?.ToString() ?? "<null>"} | isFishCategory={isFishCategory} | " +
-                    $"isActiveObject={isActiveObject} | isCarrying={f?.IsCarrying() ?? false} | " +
-                    $"isLocal={f?.IsLocalPlayer ?? false}");
 
                 if (__instance == null || f == null || !isFishCategory)
                     return;
@@ -140,16 +107,10 @@ namespace FishingExpanded.Patches
                 objectPosition += new Vector2(
                     sourceRect.Width * nativeScale * (1f - visualScale) / 2f,
                     sourceRect.Height * nativeScale * (1f - visualScale));
-
-                LogVisualDiagnostic(
-                    "HeldAnchor",
-                    $"{playerId}:{fishId}",
-                    $"anchor=bottom-center | visualScale={visualScale:F3} | " +
-                    $"source={sourceRect.Width}x{sourceRect.Height}");
             }
             catch (Exception ex)
             {
-                ModEntry.ModMonitor.Log($"[DIAG-FISH-VISUAL] drawWhenHeld入口诊断失败: {ex}", LogLevel.Warn);
+                FishingLog.LogRateLimited("ObjectPatches.DrawWhenHeld_Prefix", $"[ObjectPatches] drawWhenHeld 处理失败: {ex}", LogLevel.Warn);
             }
         }
 
@@ -169,18 +130,11 @@ namespace FishingExpanded.Patches
                 if (obj != null && isFishCategory)
                     visualScale = GiantFishManager.GetFishVisualScale(fishId, owner);
 
-                long playerId = owner?.UniqueMultiplayerID ?? -1L;
-                LogVisualDiagnostic(
-                    "GetDrawScale",
-                    $"{playerId}:{fishId}",
-                    $"category={category?.ToString() ?? "<null>"} | isFishCategory={isFishCategory} | " +
-                    $"visualScale={visualScale:F3} | stateHit={visualScale > 1.001f}");
-
                 return visualScale;
             }
             catch (Exception ex)
             {
-                ModEntry.ModMonitor.Log($"[ObjectPatches] GetDrawScale 失败: {ex}", LogLevel.Error);
+                FishingLog.LogRateLimited("ObjectPatches.GetDrawScale", $"[ObjectPatches] GetDrawScale 失败: {ex}", LogLevel.Error);
                 return 1.0f;
             }
         }

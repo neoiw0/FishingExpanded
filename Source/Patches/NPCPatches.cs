@@ -36,7 +36,7 @@ namespace FishingExpanded.Patches
             }
             catch (Exception ex)
             {
-                ModEntry.ModMonitor.Log($"NPC.checkAction 巨型鱼对话替换失败: {ex}", LogLevel.Error);
+                FishingLog.Log($"NPC.checkAction 巨型鱼对话替换失败: {ex}", LogLevel.Error);
                 return true;
             }
         }

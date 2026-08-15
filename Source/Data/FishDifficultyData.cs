@@ -14,6 +14,14 @@ namespace FishingExpanded.Data
 
         /// <summary>BATCH-038: 挑战鱼饵成功且难度等级≥95的鱼（图鉴皇冠以流动金色绘制；旧存档缺失默认空）</summary>
         public HashSet<string> ChallengeCrowns { get; set; } = new HashSet<string>();
+
+        /// <summary>BATCH-048: 战胜 100 级鱼（挑战开始时难度等级≥100）获得的流动金色皇冠，图鉴中按 1.2 倍绘制；
+        /// 旧存档缺失默认空。</summary>
+        public HashSet<string> Level100FlowCrowns { get; set; } = new HashSet<string>();
+
+        /// <summary>BATCH-058: 挑战鱼饵背板种子（键="鱼ID|难度等级"→种子）。同鱼同等级在钓起前行为一致；
+        /// 成功钓起后由 ClearChallengePatternSeed 删除，下次重新随机。旧存档缺失默认空。</summary>
+        public Dictionary<string, int> ChallengePatternSeeds { get; set; } = new Dictionary<string, int>();
     }
 
     /// <summary>单种鱼的统计数据</summary>

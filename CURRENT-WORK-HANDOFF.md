@@ -1,7 +1,7 @@
 # FishingExpanded 当前工作交接
 
 **最后更新**: 2026-08-06（视觉范围修正 + 图鉴加成修正，R0/R1/R2/构建完成）
-**当前状态**: BATCH-024 视觉路径范围修正（小游戏鱼标/结算面板不缩放，飞行动画中心锚点，落地真鱼与手持底边中点锚点）与 BATCH-025 图鉴“钓鱼技能加成”按鱼种独立显示（仅星标鱼 +0.5）均已完成 R0/R1/R2；候选 `B8BDAEFA...` 启动崩溃（coreclr AV，二分定位到位置补偿注入 `Add` 指令），已修复为 `2B0EB0F1...`（消费式 `AdjustLandingFishPosition`）并部署、启动核验通过（15:40 会话）；Runtime/真实画面验收未完成。权威状态读取 `BUG-LEDGER.md`、`MAINTENANCE-INDEX.md`、`Governance/BATCH-024-Multiplayer-Fishing-Lifecycle.md`、`Governance/BATCH-025-Collection-Bonus-Per-Fish.md`。
+**当前状态**: BATCH-024 视觉路径范围修正（小游戏鱼标/结算面板不缩放，飞行动画中心锚点，落地真鱼与手持底边中点锚点）与 BATCH-025 图鉴“钓鱼技能加成”按鱼种独立显示（仅星标鱼 +0.5）均已完成 R0/R1/R2；候选 `B8BDAEFA...` 启动崩溃（coreclr AV，二分定位到位置补偿注入 `Add` 指令），已修复为 `2B0EB0F1...`（消费式 `AdjustLandingFishPosition`）并部署、启动核验通过（15:40 会话）；Runtime/真实画面验收未完成。权威状态读取 `BUG-LEDGER.md`、`MAINTENANCE-INDEX.md`、`Governance/Archive-ReadOnly/BATCH-024-Multiplayer-Fishing-Lifecycle.md`、`Governance/Archive-ReadOnly/BATCH-025-Collection-Bonus-Per-Fish.md`。
 
 > 下一步：部署门禁（目标进程/DLL 占用检查、备份、源/目标哈希、不覆盖 `config.json`）；真实游戏验收（每个现象独立标记通过/失败/未执行）：小游戏鱼标保持原生 2f、结算面板与示意图保持原生 4f、飞行动画约 3.00 倍中心轨迹不漂移、立在玩家身边点击收包的落地真鱼约 3.00 倍且底边中点不漂移、手持底边中点不漂移、图鉴仅星标鱼显示 +0.5。工具约束：本机 `apply_patch` 与 `git apply` 不可用，编辑使用 PowerShell 精确子串替换，详见 `LOCAL-PITFALLS.md`。
 

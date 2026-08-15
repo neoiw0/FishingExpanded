@@ -37,6 +37,12 @@ namespace FishingExpanded.Utils
             return LegendaryFishIds.Contains(NormalizeItemId(fishId));
         }
 
+        /// <summary>BATCH-043: 原版 5 条传奇鱼 ID（供回填遍历；只读使用，不修改集合）。</summary>
+        public static IEnumerable<string> GetLegendaryFishIds()
+        {
+            return LegendaryFishIds;
+        }
+
         /// <summary>
         /// 统一原生物品 ID 格式。钓鱼原生入口可能传入未限定 ID（如 163）、
         /// 大写限定 ID（如 (O)163）或历史代码中的小写限定 ID（如 (o)163）。

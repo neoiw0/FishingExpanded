@@ -34,12 +34,14 @@ namespace FishingExpanded.Patches
             // 且 5 分钟内成功时按原生数量 ×1.5 向上取整；超时只取消数量加成，皇冠/等级照常）；挑战鱼饵标志（流动皇冠判定）。
             public bool WildBaitBonus { get; set; }
             public bool ChallengeBonusActive { get; set; }
+            public float ChallengeStarMultiplier { get; set; } = 1f; // BATCH-056: 挑战星惩罚（3 星=1.0、2 星=0.8、1 星=0.6、0 星=0.4）
             public bool HasChallengeBait { get; set; }
 
             public bool SuccessRecorded { get; set; }
             public bool ExperienceAdjusted { get; set; }
             public int CreateFishCalls { get; set; }
             public bool AllowAdditionalCreateFish { get; set; }
+            public bool HarvestLimited { get; set; } // BATCH-061: 本次收获超过每日限额（数量已清零，经验由 gainExperience 前缀读取）
         }
 
         // BATCH-009: 以玩家+鱼ID隔离待处理事实，不修改原生动画参数
@@ -60,16 +62,12 @@ namespace FishingExpanded.Patches
                 if (!TryGetPending(owner, normalizedFishId, out var data))
                     return 1f;
 
-                float visualScale = DifficultyCalculator.GetVisualScale(data.Multiplier);
-                ObjectPatches.LogVisualDiagnostic(
-                    "FishingRod.draw",
-                    $"{owner.UniqueMultiplayerID}:{normalizedFishId}",
-                    $"anchor=center | visualScale={visualScale:F3} | stateHit={visualScale > 1.001f}");
+                float visualScale = DifficultyCalculator.GetVisualScale(data.DifficultyLevel);
                 return visualScale;
             }
             catch (Exception ex)
             {
-                ModEntry.ModMonitor.Log($"[FishingRodPatches] 结算视觉缩放读取失败: {ex}", LogLevel.Warn);
+                FishingLog.LogRateLimited("FishingRodPatches.GetFishVisualScale", $"[FishingRodPatches] 结算视觉缩放读取失败: {ex}", LogLevel.Warn);
                 return 1f;
             }
         }
@@ -91,7 +89,7 @@ namespace FishingExpanded.Patches
             }
             catch (Exception ex)
             {
-                ModEntry.ModMonitor.Log($"[FishingRodPatches] 落地鱼图底边锚点补偿失败: {ex}", LogLevel.Warn);
+                FishingLog.LogRateLimited("FishingRodPatches.AdjustLandingFishPosition", $"[FishingRodPatches] 落地鱼图底边锚点补偿失败: {ex}", LogLevel.Warn);
                 return position;
             }
         }
@@ -130,7 +128,7 @@ namespace FishingExpanded.Patches
                 if (!TryGetPending(owner, normalizedFishId, out var data))
                     return;
 
-                float visualScale = DifficultyCalculator.GetVisualScale(data.Multiplier);
+                float visualScale = DifficultyCalculator.GetVisualScale(data.DifficultyLevel);
                 if (visualScale <= 1.001f)
                     return;
 
@@ -141,7 +139,6 @@ namespace FishingExpanded.Patches
                     sourceRect.Width * nativeScale * (1f - visualScale) / 2f,
                     sourceRect.Height * nativeScale * (1f - visualScale) / 2f);
 
-                int patchedCount = 0;
                 foreach (TemporaryAnimatedSprite anim in __instance.animations)
                 {
                     if (anim.textureName != textureName || anim.sourceRect != sourceRect)
@@ -149,17 +146,11 @@ namespace FishingExpanded.Patches
 
                     anim.scale *= visualScale;
                     anim.position += centerOffset;
-                    patchedCount++;
                 }
-
-                ObjectPatches.LogVisualDiagnostic(
-                    "FishingRod.fly",
-                    $"{owner.UniqueMultiplayerID}:{normalizedFishId}",
-                    $"anchor=center | visualScale={visualScale:F3} | sprites={patchedCount} | stateHit={patchedCount > 0}");
             }
             catch (Exception ex)
             {
-                ModEntry.ModMonitor.Log($"[FishingRodPatches] 飞行动画视觉缩放失败: {ex}", LogLevel.Warn);
+                FishingLog.Log($"[FishingRodPatches] 飞行动画视觉缩放失败: {ex}", LogLevel.Warn);
             }
         }
 
@@ -195,14 +186,14 @@ namespace FishingExpanded.Patches
                         __instance.fishQuality = 2;
                 }
 
-                ModEntry.ModMonitor.Log(
+                FishingLog.Log(
                     $"[FishingRod] 结算尺寸/品质应用 | 玩家: {owner.UniqueMultiplayerID} | 鱼ID: {normalizedFishId} | " +
                     $"等级: {data.DifficultyLevel} | fishSize: {__instance.fishSize} | fishQuality: {__instance.fishQuality}",
                     LogLevel.Debug);
             }
             catch (Exception ex)
             {
-                ModEntry.ModMonitor.Log($"[FishingRodPatches] 结算尺寸/品质应用失败: {ex}", LogLevel.Warn);
+                FishingLog.Log($"[FishingRodPatches] 结算尺寸/品质应用失败: {ex}", LogLevel.Warn);
             }
         }
 
@@ -219,7 +210,7 @@ namespace FishingExpanded.Patches
             int fishMarkerIndex = codes.FindIndex(code => IsLdcI4(code, 1870));
             if (fishMarkerIndex < 0)
             {
-                ModEntry.ModMonitor.Log(
+                FishingLog.Log(
                     "[FishingRodPatches] 未找到结算面板源矩形，落地真鱼缩放未注入",
                     LogLevel.Warn);
                 return codes;
@@ -286,7 +277,7 @@ namespace FishingExpanded.Patches
                 }
             }
 
-            ModEntry.ModMonitor.Log(
+            FishingLog.Log(
                 $"[FishingRodPatches] 落地真鱼缩放注入 | 缩放: {landingScaleCount} | 底边补偿: {landingPositionCount}",
                 landingScaleCount >= 1 && landingPositionCount >= 1
                     ? LogLevel.Info
@@ -335,7 +326,6 @@ namespace FishingExpanded.Patches
                 method.Name == nameof(SpriteBatch.Draw);
         }
 
-
         /// <summary>BATCH-009/014: pullFishFromWater Prefix - 只记录数据，不修改numCaught（鱼王豁免）</summary>
         [HarmonyPatch(nameof(FishingRod.pullFishFromWater))]
         [HarmonyPrefix]
@@ -358,11 +348,11 @@ namespace FishingExpanded.Patches
                 // BATCH-014: 鱼王类豁免所有规则
                 if (Utils.SpecialFishHelper.IsLegendaryFish(normalizedFishId))
                 {
-                    ModEntry.ModMonitor.Log(
+                    FishingLog.Log(
                         $"[FishingRod] 传奇鱼（鱼王）豁免规则 | 鱼ID: {normalizedFishId}",
                         LogLevel.Info);
 
-                    // BATCH-034: 原版 5 条传奇鱼钓到一次直接给皇冠（计入可计数皇冠/手感进度 α；失败不经过本边界）
+                    // BATCH-034/039: 原版 5 条传奇鱼钓到一次直接给皇冠（计入可计数皇冠/鱼竿熟练度 α；失败不经过本边界）
                     DifficultyManager.RecordLegendaryCatch(normalizedFishId, owner);
 
                     // 显示鱼王提示
@@ -392,6 +382,12 @@ namespace FishingExpanded.Patches
                 // 挑战鱼饵加成判定（调整后难度>100 且 5 分钟内成功；超时只取消数量加成）。
                 bool wildBaitBonus = difficultyLevel > 0 && numCaught >= 2 && !hasChallengeBait;
                 bool challengeBonusActive = hasChallengeBait && adjustedDifficulty > 100f && elapsedSeconds < 300f;
+                float challengeStarMultiplier = 1f;
+                if (hasChallengeBait && adjustedDifficulty > 100f && difficultyLevel < 95 && elapsedSeconds >= 300f)
+                {
+                    challengeStarMultiplier = BobberBarPatches.GetChallengeStarMultiplier(
+                        BobberBarPatches.GetChallengeStars(difficultyLevel, elapsedSeconds));
+                }
 
                 // BATCH-038: 尺寸数字倍率移到本结算边界统一应用（正等级每级 +10%，负等级每级 -5%）；
                 // 与原生“脱杆缩水”解耦（难度等级>0 时缩水已在 BobberBar.update Prefix 禁用）。
@@ -412,10 +408,11 @@ namespace FishingExpanded.Patches
                     FishSize = recordedFishSize,
                     WildBaitBonus = wildBaitBonus,
                     ChallengeBonusActive = challengeBonusActive,
+                    ChallengeStarMultiplier = challengeStarMultiplier,
                     HasChallengeBait = hasChallengeBait
                 };
 
-                ModEntry.ModMonitor.Log(
+                FishingLog.Log(
                     $"[FishingRod] 钓鱼成功（动画阶段）| 玩家: {owner.UniqueMultiplayerID} | 鱼ID: {normalizedFishId} | " +
                     $"难度等级: {difficultyLevel} | 数量倍数: {quantityMultiplier} | " +
                     $"脱杆次数: {missCount} | 动画显示: {numCaught}条 | 尺寸(原生→结算): {fishSize} → {recordedFishSize} | " +
@@ -424,7 +421,7 @@ namespace FishingExpanded.Patches
             }
             catch (Exception ex)
             {
-                ModEntry.ModMonitor.Log($"pullFishFromWater Prefix 失败: {ex}", LogLevel.Error);
+                FishingLog.Log($"pullFishFromWater Prefix 失败: {ex}", LogLevel.Error);
             }
         }
 
@@ -450,33 +447,58 @@ namespace FishingExpanded.Patches
                 if (!isFinalFish)
                     return;
 
-                bool hasQuantityBonus = data.WildBaitBonus || data.ChallengeBonusActive || data.Multiplier > 1;
+                bool hasQuantityBonus = data.WildBaitBonus || data.ChallengeBonusActive ||
+                    data.ChallengeStarMultiplier < 1f || data.Multiplier > 1;
                 if (hasQuantityBonus)
                 {
                     int nativeStack = Math.Max(1, __result.Stack);
                     long finalStack = nativeStack;
 
                     // BATCH-038: 万能鱼饵原本给两条鱼时 +10 条（难度等级>0）；挑战鱼饵 5 分钟内成功 ×1.5 向上取整。
+                    // BATCH-056: 超过 5 分钟按掉星惩罚（每颗 −20%，替换原“直接取消 ×1.5”）。
                     if (data.WildBaitBonus)
                         finalStack = nativeStack + 10;
                     else if (data.ChallengeBonusActive)
                         finalStack = (long)Math.Ceiling(nativeStack * 1.5);
+                    if (data.ChallengeStarMultiplier < 1f)
+                        finalStack = (long)Math.Round(nativeStack * data.ChallengeStarMultiplier);
 
                     if (data.Multiplier > 1)
                         finalStack *= data.Multiplier;
 
                     __result.Stack = (int)Math.Min(int.MaxValue, finalStack);
-                    ModEntry.ModMonitor.Log(
+                    FishingLog.Log(
                         $"[FishingRod] 数量转化完成 | 玩家: {owner.UniqueMultiplayerID} | 鱼ID: {normalizedFishId} | " +
                         $"原生堆叠: {nativeStack} → 最终: {__result.Stack} | 万能加成: {data.WildBaitBonus} | " +
                         $"挑战加成: {data.ChallengeBonusActive} | 等级倍数: ×{data.Multiplier}",
                         LogLevel.Info);
                 }
 
+                // BATCH-061: 每日收获限额——非原版可钓的鱼（Mod 鱼）与非鱼类（垃圾/藻类）按物品单独 333/天；
+                // 达到上限后仍可钓（小游戏/难度等级/星星照常），但数量=0 且经验=0（经验由 gainExperience
+                // 前缀读取 HarvestLimited 置零）。左下角每类每天首次超限提示一次。
+                if (DifficultyManager.IsDailyHarvestLimited(normalizedFishId))
+                {
+                    int dailyCount = DifficultyManager.ConsumeDailyHarvest(normalizedFishId, owner);
+                    if (dailyCount > DifficultyManager.DailyHarvestLimit)
+                    {
+                        data.HarvestLimited = true;
+                        __result.Stack = 0;
+                        if (DifficultyManager.MarkDailyLimitNotified(normalizedFishId, owner))
+                        {
+                            HUDNotifier.ShowDailyLimitReached(normalizedFishId);
+                        }
+                        FishingLog.Log(
+                            $"[FishingRod] 每日收获限额 | 玩家: {owner.UniqueMultiplayerID} | 鱼ID: {normalizedFishId} | " +
+                            $"当日: {dailyCount - 1}/{DifficultyManager.DailyHarvestLimit} → 本次数量清零",
+                            LogLevel.Info);
+                    }
+                }
+
             }
             catch (Exception ex)
             {
-                ModEntry.ModMonitor.Log($"FishingRod.CreateFish Postfix 失败: {ex}", LogLevel.Error);
+                FishingLog.Log($"FishingRod.CreateFish Postfix 失败: {ex}", LogLevel.Error);
             }
         }
 
@@ -554,7 +576,7 @@ namespace FishingExpanded.Patches
             }
             catch (Exception ex)
             {
-                ModEntry.ModMonitor.Log($"FishingRod.doneHoldingFish Postfix 失败: {ex}", LogLevel.Error);
+                FishingLog.Log($"FishingRod.doneHoldingFish Postfix 失败: {ex}", LogLevel.Error);
             }
         }
 
@@ -571,7 +593,7 @@ namespace FishingExpanded.Patches
             }
             catch (Exception ex)
             {
-                ModEntry.ModMonitor.Log($"FishingRod.openTreasureMenuEndFunction Prefix 失败: {ex}", LogLevel.Error);
+                FishingLog.Log($"FishingRod.openTreasureMenuEndFunction Prefix 失败: {ex}", LogLevel.Error);
             }
         }
 
@@ -587,7 +609,7 @@ namespace FishingExpanded.Patches
             }
             catch (Exception ex)
             {
-                ModEntry.ModMonitor.Log($"FishingRod.openTreasureMenuEndFunction Postfix 失败: {ex}", LogLevel.Error);
+                FishingLog.Log($"FishingRod.openTreasureMenuEndFunction Postfix 失败: {ex}", LogLevel.Error);
             }
         }
 
@@ -604,7 +626,7 @@ namespace FishingExpanded.Patches
             }
             catch (Exception ex)
             {
-                ModEntry.ModMonitor.Log($"FishingRod.justGotDerbyTagEndFunction Prefix 失败: {ex}", LogLevel.Error);
+                FishingLog.Log($"FishingRod.justGotDerbyTagEndFunction Prefix 失败: {ex}", LogLevel.Error);
             }
         }
 
@@ -620,7 +642,7 @@ namespace FishingExpanded.Patches
             }
             catch (Exception ex)
             {
-                ModEntry.ModMonitor.Log($"FishingRod.justGotDerbyTagEndFunction Postfix 失败: {ex}", LogLevel.Error);
+                FishingLog.Log($"FishingRod.justGotDerbyTagEndFunction Postfix 失败: {ex}", LogLevel.Error);
             }
         }
 
@@ -656,7 +678,7 @@ namespace FishingExpanded.Patches
 
                 if (data.DifficultyLevel != 0 && data.FishSize != size)
                 {
-                    ModEntry.ModMonitor.Log(
+                    FishingLog.Log(
                         $"[Farmer] 收藏尺寸使用结算值 | 鱼ID: {fishId} | {size} → {data.FishSize}",
                         LogLevel.Debug);
                     size = data.FishSize;
@@ -664,7 +686,7 @@ namespace FishingExpanded.Patches
             }
             catch (Exception ex)
             {
-                ModEntry.ModMonitor.Log($"caughtFish Prefix 失败: {ex}", LogLevel.Error);
+                FishingLog.Log($"caughtFish Prefix 失败: {ex}", LogLevel.Error);
             }
         }
 
@@ -711,18 +733,24 @@ namespace FishingExpanded.Patches
                 // BATCH-038: 流动金色皇冠（难度等级≥95 且挑战鱼饵生效时成功；超 5 分钟只取消数量加成，皇冠照常）
                 if (data.DifficultyLevel >= 95 && data.HasChallengeBait)
                 {
-                    DifficultyManager.RecordChallengeCrown(fishId, __instance);
+                    // BATCH-048: 挑战开始时难度等级≥100（100 级鱼）的流动皇冠额外记录 1.2 倍标记。
+                    DifficultyManager.RecordChallengeCrown(fishId, __instance, atLevel100: data.DifficultyLevel >= 100);
                 }
 
-                if (data.Multiplier > 15)
+                // BATCH-058: 挑战鱼饵成功钓起后清除背板种子（下次同鱼同等级重新随机）
+                if (data.HasChallengeBait)
+                    DifficultyManager.ClearChallengePatternSeed(fishId, data.DifficultyLevel, __instance);
+
+                // BATCH-060: 巨型鱼门槛 = 难度等级 ≥8（与数量倍数解耦；原“数量倍数 >15”等价等级 ≥8）
+                if (data.DifficultyLevel >= 8)
                 {
                     int fishSize = data.FishSize > 0
                         ? data.FishSize
-                        : Math.Max(1, data.OriginalNum) * data.Multiplier;
-                    GiantFishManager.RecordGiantFish(__instance, fishId, data.Multiplier, fishSize);
+                        : Math.Max(20, data.OriginalNum * 10);
+                    GiantFishManager.RecordGiantFish(__instance, fishId, data.DifficultyLevel, fishSize);
                 }
 
-                ModEntry.ModMonitor.Log(
+                FishingLog.Log(
                     $"[Farmer] 难度等级更新 | 鱼ID: {fishId} | " +
                     $"脱杆: {data.MissCount}次 | 基础增长: +{baseLevelGain} | 额外难度增益: +{difficultyGain} | 实际增长: +{actualLevelGain} | {oldLevel} → {newLevel}",
                     LogLevel.Info);
@@ -736,14 +764,14 @@ namespace FishingExpanded.Patches
                     Item starfruitTea = ItemRegistry.Create("(O)StardropTea", 1);
                     __instance.addItemByMenuIfNecessary(starfruitTea);
                     HUDNotifier.ShowStarfruitTeaNotification(fishId);
-                    ModEntry.ModMonitor.Log(
+                    FishingLog.Log(
                         $"[Farmer] 星之果茶掉落 | 鱼ID: {fishId} | 难度等级: {oldLevel} | 概率: {oldLevel / 400.0:P1}",
                         LogLevel.Info);
                 }
             }
             catch (Exception ex)
             {
-                ModEntry.ModMonitor.Log($"caughtFish Postfix 失败: {ex}", LogLevel.Error);
+                FishingLog.Log($"caughtFish Postfix 失败: {ex}", LogLevel.Error);
             }
         }
     }
