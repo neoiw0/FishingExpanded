@@ -58,7 +58,7 @@
 
 | 部署事实 | 值 |
 |---|---|
-| DLL SHA-256 | 候选 v1：`DDC3AE79DD09D1997AA22C762172B66478184DCD0D745972AA84684973B5A62E`（0 警告 0 错误）；2026-08-15 11:48 已部署（备份 `DeploymentBackups\FishingExpanded-20260815-114839-pre-BATCH060-058T`=6B79AE60...；源/目标哈希一致；i18n×2 同步含 BATCH-058T 文案；config.json 未触碰）；部署时游戏运行中（文件可覆盖，当前会话仍为旧 DLL，重启生效）。**候选 v2（追加第 9 项 VanillaTips 注入）：`B5CC284E655C661F4C8D6F6D8430F795AE2796B7FA5D10BC5C32FF29A95A25BE`（0 警告 0 错误，反编译核验 TryRegister/RegisterTips("YourName.FishingExpanded", 11f)/7 ids 均编译进 DLL）**；v1 已部署不含注入代码，v2 需重新部署授权 |
+| DLL SHA-256 | 候选 v1：`DDC3AE79DD09D1997AA22C762172B66478184DCD0D745972AA84684973B5A62E`（0 警告 0 错误）；2026-08-15 11:48 已部署（备份 `DeploymentBackups\FishingExpanded-20260815-114839-pre-BATCH060-058T`=6B79AE60...；源/目标哈希一致；i18n×2 同步含 BATCH-058T 文案；config.json 未触碰）。**候选 v2（含第 9 项 VanillaTips 注入）：实际部署哈希 `833A0812A16D73670AD9BBE9A6162A17FF656B7CE542500A56AAC5209072E2D0`**（并行会话在我方 v2 构建 `B5CC284E...` 之后以同一源码重建，反编译核验 TryRegister/RegisterTips("YourName.FishingExpanded", 11f)/7 ids 均在 DLL 内）；2026-08-15 21:29 已部署（备份 `DeploymentBackups\FishingExpanded-20260815-212926-pre-BATCH060v2`=FCC66220...；源/目标哈希一致，i18n×2 + manifest 同步，config.json 未触碰）；**Git 检查点：`383dbc4`（2026-08-15，331 文件，含并行批次 058T-文案/061/062-064/065-CrabPot 与治理重组；检查点不代表真实验收）** |
 <!-- CURRENT-STATE-END -->
 
 ## 变更清单（用户确认）
