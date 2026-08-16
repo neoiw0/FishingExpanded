@@ -82,7 +82,7 @@ Skipped mods
 在SMAPI控制台窗口向上滚动，找到MOD加载阶段，查找：
 ```
 Loading mods...
-   Loaded FishingExpanded 0.3.0 by YourName | <描述>
+   Loaded FishingExpanded 0.3.0 by neoiw | <描述>
 ```
 
 如果看到 "Loaded"，继续查找初始化日志：

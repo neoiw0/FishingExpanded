@@ -37,13 +37,80 @@ namespace FishingExpanded.Utils
             return level;
         }
 
-        /// <summary>计算经验倍数（BATCH-060 公式保持：max(1, round(level×0.5))；BATCH-062 与数量倍数解耦）</summary>
+        /// <summary>BATCH-067: 固定钓鱼等级系数——难度等级增长与玩家的固定（基础）钓鱼等级挂钩：
+        /// 系数 = max(等级,1)/10（1 级 ×0.1、10 级 ×1.0=现有速度；0 级按 0.1 钳制）。
+        /// 调用方必须传 `Farmer.fishingLevel.Value`（基础字段，不含食物/饮料 buff 与助战临时等级，
+        /// 见 `_analysis\StardewValley.Farmer.decompiled.cs:592-593/1612`：FishingLevel 属性 = 字段 + buffs.FishingLevel）。</summary>
+        public static float GetFishingLevelGainFactor(int baseFishingLevel)
+        {
+            return Math.Max(1, baseFishingLevel) / 10f;
+        }
+
+        /// <summary>BATCH-067: 成功钓起的请求等级增益 = max(1, round((脱杆基数 + round(调整后难度/50)) × 系数))。
+        /// 保留 BATCH-029 雪球（round(调整后难度/50)）并整体乘固定钓鱼等级系数；保底 +1（低等级/多脱杆时
+        /// round 归 0 由 max(1,…) 兜底）。称号区间封顶、88→89 入口与 89+ 每次 +6 仍由 DifficultyManager.RecordSuccess 统一执行。</summary>
+        public static int GetRequestedLevelGain(int baseLevelGain, float adjustedDifficulty, int baseFishingLevel)
+        {
+            int snowball = (int)Math.Round(adjustedDifficulty / 50f);
+            float factor = GetFishingLevelGainFactor(baseFishingLevel);
+            return Math.Max(1, (int)Math.Round((baseLevelGain + snowball) * factor));
+        }
+
+        /// <summary>BATCH-067: 挑战鱼饵掉星折扣（回归 GAME-DESIGN §7.5"每掉 1 颗最终鱼获 −20%"）——
+        /// 对乘完等级倍数后的最终数量打折并兜底 ≥1。折扣乘数：0.8/0.6/0.4（2/1/0 星）。
+        /// 原生挑战鱼饵必给 3 条（BobberBar.decompiled.cs:240-242/354-357 challengeBaitFishes=3），
+        /// round(3×0.4)=1 恒非零；本函数兜底保证任何路径不归零。</summary>
+        public static long ApplyChallengeStarMultiplier(long finalStack, float starMultiplier)
+        {
+            if (starMultiplier >= 1f)
+                return finalStack;
+            return Math.Max(1, (long)Math.Round(finalStack * starMultiplier));
+        }
+
+        /// <summary>BATCH-068: 经验公式难度输入上限（用户 2026-08-16 确认=120：比原生最高难度 110 大一点；
+        /// 原生最高=扩展传奇 Legend II 900 难度 110，`_analysis\Fish-data-extracted.txt:71`）。
+        /// 经验基数难度部分 = clamp(实际传入难度, 原生难度, 本上限)——低于原生抬到原生（负数/力竭补偿），
+        /// 高于上限压到上限（正数高等级不再随调整后难度爆炸）。</summary>
+        public const float ExperienceDifficultyCap = 120f;
+
+        /// <summary>BATCH-068: 经验公式难度输入 = clamp(传入难度, 原生难度, 120 上限)。</summary>
+        public static float GetExperienceDifficulty(float passedDifficulty, float nativeDifficulty)
+        {
+            if (nativeDifficulty > 0f)
+                return Math.Max(nativeDifficulty, Math.Min(passedDifficulty, ExperienceDifficultyCap));
+            return Math.Min(passedDifficulty, ExperienceDifficultyCap);
+        }
+
+        /// <summary>BATCH-068: 复刻原生经验公式（`_analysis\StardewValley.FishingRod.decompiled.cs:1188-1203`）：
+        /// 经验 = max(1, (品质+1)×3 + (int)难度/3)，宝箱 +120%（基于当前值）、完美 +140%（基于含宝箱的值）、Boss ×5。
+        /// 用于经验基数重算：负数难度等级/力竭衰减使传入难度低于原生难度时抬到原生水平，
+        /// 正数超过 120 上限时压到上限（调用方先用 GetExperienceDifficulty 得到钳制后难度）。</summary>
+        public static int GetNativeExperience(int fishQuality, float experienceDifficulty, bool treasureCaught, bool wasPerfect, bool isBossFish)
+        {
+            int baseXP = Math.Max(1, (fishQuality + 1) * 3 + (int)experienceDifficulty / 3);
+            if (treasureCaught)
+                baseXP += (int)((float)baseXP * 1.2f);
+            if (wasPerfect)
+                baseXP += (int)((float)baseXP * 1.4f);
+            if (isBossFish)
+                baseXP *= 5;
+            return baseXP;
+        }
+
+        /// <summary>计算经验倍数（BATCH-068：10 级保持 ×5、100 级改为 ×20，10~100 线性平滑，
+        /// 用户 2026-08-16 确认"10难度能力还是乘以5，之后平滑处理，100难度等级乘以20"；
+        /// 1~10 级保持 BATCH-060 公式 max(1, round(level×0.5))，BATCH-062 与数量倍数解耦）</summary>
         /// <param name="level">难度等级 [0, 100]</param>
         /// <returns>经验倍数（负数等级返回1）</returns>
         public static int GetExperienceMultiplier(int level)
         {
             if (level <= 0) return 1;
-            return (int)Math.Max(1, Math.Round(level * 0.5, MidpointRounding.AwayFromZero));
+            if (level <= 10)
+                return (int)Math.Max(1, Math.Round(level * 0.5, MidpointRounding.AwayFromZero));
+            if (level >= 100)
+                return 20;
+            // 10→×5、100→×20 线性：5 + (level-10)×(15/90)
+            return (int)Math.Round(5f + (level - 10) * (15f / 90f), MidpointRounding.AwayFromZero);
         }
 
         /// <summary>BATCH-060: 品质门槛（提升到式，非累加）：10 级→银、25 级→金、50 级→铱；10 级以下不提升。</summary>

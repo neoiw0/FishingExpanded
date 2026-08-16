@@ -1,6 +1,6 @@
 # Fishing Expanded — 玩家 Wiki（资深玩家版）
 
-> 面向资深玩家的完整机制文档。内容基于 `GAME-DESIGN.md` 与当前源码（manifest 版本 `0.5.10`，2026-08-15 更新至 BATCH-060，含 7 项设计调整：89+ 每次成功最多 +6、助战提示 15 秒、数量/经验倍数 = max(1, round(level×0.5))、品质门槛 10/25/50（提升到式）、巨型鱼改按难度等级 ≥8、挑战鱼饵掉星左下角提示、新增术语表）。公式与阈值以代码实际行为为准；与设计文档不一致处已用「实现说明」标注。
+> 面向资深玩家的完整机制文档。内容基于 `GAME-DESIGN.md` 与当前源码（manifest 版本 `0.5.10`，2026-08-16 更新至 BATCH-068：节日钓鱼开关（BATCH-066）、难度等级挂钩固定钓鱼等级与成功保底 +1（BATCH-067）、挑战掉星折扣作用于最终数量（BATCH-067）、经验公式难度输入钳制 [原生难度, 120] 与经验倍数 10 级 ×5 → 100 级 ×20 线性（BATCH-068）；数量倍数自 BATCH-062 起 = 等级×1）。公式与阈值以代码实际行为为准；与设计文档不一致处已用「实现说明」标注。
 >
 > English readers: every section has an English mirror below the Chinese text.
 
@@ -26,7 +26,9 @@ English: Per-fish difficulty ranks with dynamic difficulty/count/XP/quality/size
 | 调整后难度 | 小游戏实际难度 = 原生 difficulty × 难度等级倍数；星标（≥120）、跳鱼（≥150）、力竭/挑战鱼饵（≥100/>100）等判定均基于它（§4） |
 | 有效难度 | 战斗中实时难度 = 调整后难度经力竭衰减后的值（15 分钟降到 80；挑战鱼饵下恒等于开局值）（§9.3） |
 | 难度档位 | 按有效难度划分的机制档位（跳鱼间隔 150/250/350/450/550 分档等）（§4.2） |
-| 数量倍数 | 最终鱼获条数乘数 = max(1, round(难度等级 × 0.5))，0 级及以下 = 1（§2.4，BATCH-060） |
+| 数量倍数 | 最终鱼获条数乘数 = 难度等级×1（0 级及以下 = 1；100 级 = 100）（§2.4，BATCH-062） |
+| 固定钓鱼等级系数 | 难度等级增长系数 = max(固定钓鱼等级, 1)×0.1——固定钓鱼等级 = 玩家基础钓鱼等级字段（0~10，不含食物/饮料 buff 与助战临时等级）；1 级 ×0.1、10 级 ×1.0（§2.2，BATCH-067） |
+| 经验难度钳制 | 经验公式的难度输入钳制在 [原生难度, 120]：低于原生难度（负数等级/力竭）按原生难度重算，高于 120 按 120 重算（§2.4，BATCH-068） |
 | 可计数皇冠 | 56 条原生普通真鱼 + 5 条原版传奇鱼（共 61）的皇冠；Mod 鱼/扩展传奇皇冠只显示、不计入 α 与助战（§7.1） |
 | 鱼竿熟练度 α | 可计数皇冠分段线性（0/5/10/20/30/61 → 0%/2%/7%/20%/35%/100%），驱动小游戏手感（§7.2） |
 | 挑战星 | 挑战鱼饵的原生 3 星计数；5:00 起每分钟掉 1 颗（≥95 豁免），每颗 −20% 鱼获（§8） |
@@ -45,7 +47,7 @@ English: Per-fish difficulty ranks with dynamic difficulty/count/XP/quality/size
 
 ### 2.2 升级与降级
 
-**成功钓起**时，先计算原始收益，再应用称号区间封顶（不能一次跨越多个称号）：
+**成功钓起**时，先计算原始收益，再乘固定钓鱼等级系数并保底，最后应用称号区间封顶（不能一次跨越多个称号）：
 
 | 脱杆次数 | 基础收益 |
 |---|---:|
@@ -54,12 +56,15 @@ English: Per-fish difficulty ranks with dynamic difficulty/count/XP/quality/size
 | 2 次 | +2 |
 | ≥3 次 | +1 |
 
-- 额外收益：`+ round(调整后难度 / 50)`（调整后难度 500 → +10），与基础收益**叠加**后统一按区间封顶。
-- 当前等级对应的“下一称号区间上限”即本次增长上限；已在区间上限时收益为 0。
+- 额外收益：`+ round(调整后难度 / 50)`（调整后难度 500 → +10），与基础收益**叠加**。
+- **固定钓鱼等级系数（BATCH-067）**：`请求增益 = max(1, round((基础收益 + 额外收益) × max(固定钓鱼等级, 1) × 0.1))`——固定钓鱼等级 = 玩家基础钓鱼等级（`Farmer.fishingLevel` 字段，0~10，**不含**食物/饮料 buff 与助战临时等级）；1 级 ×0.1、10 级 ×1.0（现有增长速度 = 满级玩家速度）、0 级钳 0.1；钓鱼等级越高等级加得越快。
+- **成功保底（BATCH-067）**：乘系数并四舍五入后不足 1 时按 **+1** 计算——成功钓起至少 +1 级（已封顶的鱼仍为 +0，不违反封顶）。
+- 称号区间封顶（见 2.3）、89 级以上每次成功最多 +6（BATCH-060）、非鱼类上限 8 级、挑战鱼饵失败不掉级（BATCH-058）均不受系数影响。
+- **蟹笼（BATCH-065）**：每次收获固定 +1 等级（不吃固定钓鱼等级系数）；经验保持原生固定 5 点。
 
 **失败**：等级 −1，同时累计“连续失败次数”（成功后清零，用于史诗失败提示）。（BATCH-058：挑战鱼饵失败不掉等级，连续失败计数照常 +1。）
 
-English: Level = success − failure, clamped to [-10,100] ([-10,8] for non-fish). A successful catch grants base gain by escapes (perfect 0 escapes → +10, 1 → +5, 2 → +2, 3+ → +1) plus `round(adjustedDifficulty/50)`, all capped at the next rank ceiling. Failure −1 and increments the consecutive-failure counter.
+English: Level = success − failure, clamped to [-10,100] ([-10,8] for non-fish). A successful catch grants base gain by escapes (perfect 0 escapes → +10, 1 → +5, 2 → +2, 3+ → +1) plus `round(adjustedDifficulty/50)`, then the total is multiplied by the fixed-fishing-level factor `max(base fishing level, 1) × 0.1` (level 1 → ×0.1, level 10 → ×1.0; buffs excluded), floored at +1 per successful catch, and capped at the next rank ceiling. Failure −1 and increments the consecutive-failure counter. Crab pots grant a fixed +1 level per haul without the factor.
 
 ### 2.3 称号表 / Rank Table
 
@@ -85,8 +90,9 @@ English: Level = success − failure, clamped to [-10,100] ([-10,8] for non-fish
 | 效果 | 公式 | 端点值 |
 |---|---|---|
 | difficulty 倍数 | 正数分段线性：0→×1.0、4→×1.2、20→×5、50→×20、100→×50（斜率 0.05 / 0.2375 / 0.5 / 0.6 逐段递增）；负数：`0.5 + 0.5×(level+10)/10` | -10 → 0.5；0 → 1；100 → 50 |
-| 获得数量倍数 | `level ≤ 0 ? 1 : max(1, round(level × 0.5))`（BATCH-060；四舍五入 AwayFromZero） | 100 → 50；8 → 4；50 → 25 |
-| 经验倍数 | 同数量倍数（BATCH-060；10 级后经验流入原生精通系统） | 1–50 |
+| 获得数量倍数 | `level ≤ 0 ? 1 : level`（BATCH-062，与经验倍数解耦） | 100 → 100；8 → 8；50 → 50 |
+| 经验倍数 | 1~10 级：`max(1, round(level × 0.5))`（10 级 = ×5，BATCH-060 公式保持）；10~100 级：线性 `round(5 + (level−10)×15/90)`（BATCH-068：10 级 ×5 → 100 级 ×20）；≥100 封顶 20 | 10 → 5；50 → 12；100 → 20 |
+| 经验难度输入 | 钳制在 `[原生难度, 120]`（BATCH-068）：低于原生难度（负数等级/力竭）→ 按原生难度重算（不低于未装模组）；高于 120 → 按 120 重算（基数不爆炸）；区间内不变；重算复刻原生公式 `max(1, (品质+1)×3 + 难度/3)` + 宝箱 +120%/完美 +140%/Boss ×5，随后仍乘经验倍数 | 上限 120（= 原生最高难度 110 以上一点） |
 | 品质提升 | 门槛式“提升到”：`level ≥ 50 → 铱(4)；≥ 25 → 金(2)；≥ 10 → 银(1)；否则不提升`；最终品质 = max(原品质, 门槛)（BATCH-060） | 10 → 银；25 → 金；50 → 铱 |
 | 尺寸数值（fishSize） | 正数：`1 + 0.1×level`；负数：`max(0.1, 1 − 0.05×|level|)` | 100 → 11×；-10 → 0.5× |
 | 视觉缩放 | `1 + level × 0.0270843`（线性，BATCH-060 与数量倍数解耦、按难度等级） | 0 级 = 1.0；100 级 ≈ 3.71 |
@@ -96,7 +102,7 @@ English: Level = success − failure, clamped to [-10,100] ([-10,8] for non-fish
 - 尺寸数字在结算边界统一应用等级倍率（`pullFishFromWater`/`caughtFish`）；难度等级 >0 时脱杆不再触发原生 800ms 缩水、也不降品质（BATCH-038）。
 - 负数等级时数量/经验保持 1×，品质不提升。
 
-English: All effects scale with the level. Difficulty multiplier is piecewise-linear (anchors 0→×1.0, 4→×1.2, 20→×5, 50→×20, 100→×50, slopes increasing); quantity/XP = max(1, round(level×0.5)) → ×1…×50 (BATCH-060); quality is a "raise-to" threshold (10→silver, 25→gold, 50→iridium, final = max(base, threshold)); fishSize ×0.5→×11; held-item visual scale = 1 + level×0.0270843 up to ≈3.71 (decoupled from quantity, BATCH-060). At level >0 the vanilla escape-based size shrink and quality penalty are disabled.
+English: All effects scale with the level. Difficulty multiplier is piecewise-linear (anchors 0→×1.0, 4→×1.2, 20→×5, 50→×20, 100→×50, slopes increasing); quantity multiplier = level (0 or below = 1, BATCH-062); XP multiplier = max(1, round(level×0.5)) up to level 10 (×5 at 10), then linear ×5→×20 through level 100 (BATCH-068), and the XP formula's difficulty input is clamped to [native difficulty, 120] (negative-level/exhaustion recalc at native difficulty, >120 recalc at 120); quality is a "raise-to" threshold (10→silver, 25→gold, 50→iridium, final = max(base, threshold)); fishSize ×0.5→×11; held-item visual scale = 1 + level×0.0270843 up to ≈3.71 (decoupled from quantity, BATCH-060). At level >0 the vanilla escape-based size shrink and quality penalty are disabled.
 
 ---
 
@@ -251,7 +257,7 @@ English: A permanent crown is earned by successfully catching a countable native
 - **万能鱼饵加成**（BATCH-038）：难度等级 >0 且原生本应给两条鱼（`numCaught ≥ 2`，非挑战鱼饵）时，原生堆叠 **+10 条**（原生 2 条 → 12 条），再乘等级数量倍数。
 - **挑战鱼饵改版**（调整后难度 >100 时生效，BATCH-038）：
   - **5 分钟（300 秒）内成功** → 原生堆叠 `×1.5`（向上取整）再乘等级数量倍数；
-  - **超时掉星（BATCH-058）**：5:00 起每分钟掉 1 颗原生挑战星（5:00→2、6:00→1、7:00→0，不可恢复；难度等级 ≥95 豁免），每掉 1 颗最终鱼获 −20%（0.8/0.6/0.4）；等级收益、普通皇冠、流动金色皇冠、品质、尺寸全部照常（例：30 分钟钓到 98 级鱼仍给流动金皇冠）；**掉星瞬间左下角 FIFO 提示剩余星数与鱼获减少百分比（BATCH-060，小游戏期间可见）**；
+  - **超时掉星（BATCH-058）**：5:00 起每分钟掉 1 颗原生挑战星（5:00→2、6:00→1、7:00→0，不可恢复；难度等级 ≥95 豁免），每掉 1 颗最终鱼获 −20%（0.8/0.6/0.4，**作用于乘完等级倍数后的最终数量**，四舍五入并兜底 ≥1 条——BATCH-067 回归设计口径；原生挑战鱼饵必给 3 条，恒 ≥1 条不归零）；等级收益、普通皇冠、流动金色皇冠、品质、尺寸全部照常（例：30 分钟钓到 98 级鱼仍给流动金皇冠）；**掉星瞬间左下角 FIFO 提示剩余星数与鱼获减少百分比（BATCH-060，小游戏期间可见）**；
   - **难度不衰减**（力竭衰减不适用，有效难度恒等于开局值）；
   - **无其他鱼助战**；**原生“3 次脱杆失败”规则禁用**（可继续挑战到成功）。
 - 堆叠按原版规则（同种同品质可堆叠，上限 999）。
@@ -274,7 +280,7 @@ English: The quantity multiplier is applied once at item creation (final stack =
 ### 9.2 非鱼类（垃圾/藻类等，Category ≠ -4）
 
 - 等级范围 [-10, 8]；达到 8 级后成功不再增加等级（底层统计保持 8）。
-- 数量/难度/品质倍数仍按等级 8 计算（数量倍数 = max(1, round(8×0.5)) = **4 倍**，BATCH-060；品质 8 级达不到 10 级门槛，不提升）。
+- 数量/难度/品质倍数仍按等级 8 计算（数量倍数 = 等级×1 = **8 倍**，BATCH-062；品质 8 级达不到 10 级门槛，不提升）。
 - 8 级封顶后再成功显示 `对于{物品名}而言，你已是帝王`。
 - **实现说明**：设计文档规定非鱼类封顶后仍参与视觉缩放/NPC/星标，但当前代码的巨型鱼登记限定 Category = -4 的真鱼，非鱼类不产生超大鱼展示；其原始难度极低，实际上也几乎不可能达到皇冠阈值。
 
@@ -282,7 +288,7 @@ English: The quantity multiplier is applied once at item creation (final stack =
 
 - 节点与百分比：1/3/5/7/9/12/15 分钟 → 1%/3%/10%/20%/35%/50%/100%，节点间线性（含 0→1 分钟段）。
 - 公式：`有效难度 = 调整后难度 + (80 − 调整后难度) × 百分比`；15 分钟（100%）时难度降到 80，之后保持 80。
-- **奖励不下降**：数量/等级/皇冠结算以开局调整后难度快照为准。
+- **奖励不下降**：数量/等级/皇冠结算以开局调整后难度快照为准；**经验基数同样不下降（BATCH-068）**——经验公式难度输入钳制在 [原生难度, 120]，有效难度低于原生难度时按原生难度重算，经验不低于未装模组。
 - 挑战鱼饵生效时难度**不衰减**（有效难度恒等于开局值），但节点提示仍显示并追加一句随机文案。
 - 每个节点在“鱼其他提示”通道显示一条随机诙谐文案（i18n `hud.exhaust.{1|3|5|7|9|12|15}.{1..10}`）。
 
@@ -321,7 +327,23 @@ English: Host and every farmhand must install the mod. All state is isolated per
 
 ---
 
-## 11. 控制台命令 / Console Commands（调试/测试）
+## 11. 节日钓鱼开关 / Festival Fishing (BATCH-066)
+
+`config.json` 键 `EnableFestivalFishingMods`（GMCM“节日钓鱼应用模组规则”，默认 **false**），覆盖三个钓鱼节日：
+
+| 开关 | 行为 |
+|---|---|
+| **false（默认）= 完全原生** | 鱿鱼节（SquidFest，冬 12–13 沙滩）/ 鳟鱼大赛（TroutDerby，夏 20–21 森林）/ 冰雪节（Festival of Ice，冬 8 森林）：无难度等级注入、无数量倍数、无经验倍数、无品质加成、无模组结算/HUD/提示；分数与概率全原生（鱿鱼节每次成功 +原生数量 分；冰雪节每次成功 +1 分；鳟鱼大赛 tag 概率 33%×原生数量） |
+| **true = 模组规则照常** | 难度等级/倍数/品质全部生效，且节日分数按数量倍数翻倍：鱿鱼节每次成功 +`原生数量×倍数` 分；冰雪节每次成功 +数量倍数 分（原生 +1，模组补 倍数−1；例：难度 10 → 一次 +10 分） |
+
+- 冰雪节为事件型节日：鱼不进背包、无经验，结算走原生 `Event.caughtFish`（模组 Postfix 补分并消费式清理待处理事实）。
+- 开关关闭时所有模组边界自动回落原生（BobberBar 构造/结算/经验五处边界统一判定），不残留状态。
+
+English: The `EnableFestivalFishingMods` config toggle (default off) makes the three fishing festivals (SquidFest, TroutDerby, Festival of Ice) fully vanilla: no difficulty levels, multipliers, XP or mod settlement/tips; scores and tag chances stay vanilla. When enabled, mod rules apply and festival scores scale with the quantity multiplier (SquidFest +native count×multiplier per catch; Ice Festival +multiplier points per catch). The Ice Festival is event-based: fish don't enter the inventory and no XP is granted.
+
+---
+
+## 12. 控制台命令 / Console Commands（调试/测试）
 
 | 命令 | 作用 | 示例 |
 |---|---|---|
@@ -340,13 +362,13 @@ English: Host and every farmhand must install the mod. All state is isolated per
 | `fish_assist` | 强制下一次小游戏触发助战（测试） | `fish_assist` |
 | `fish_assiststats [clear]` | 查看/清空助战观测统计（会话内，上限 500） | `fish_assiststats clear` |
 | `fish_persisttest <30\|60>` | 强制下一次小游戏按指定秒数判定持久战奖励（测试） | `fish_persisttest 60` |
-| `fish_selftest` | 自动自测（难度/可计数皇冠/助战分布/限频日志等只读项） | `fish_selftest` |
+| `fish_selftest` | 自动自测（难度/可计数皇冠/助战分布/限频日志/经验钳制与倍数曲线等只读项） | `fish_selftest` |
 
-English: Fifteen SMAPI console commands cover level/stats editing, inspection, data clearing, crown toggles, giant-fish simulation, assist testing/statistics, perseverance-reward forcing, and a read-only self-test. Data/query commands accept an optional leading player index (1=host, 2=first farmhand, etc., from `Game1.getAllFarmers()`; omitted = current player), e.g. `fish_addstars 2 20` and `fish_bonus 2` (BATCH-045).
+English: Fifteen SMAPI console commands cover level/stats editing, inspection, data clearing, crown toggles, giant-fish simulation, assist testing/statistics, perseverance-reward forcing, and a read-only self-test (including the BATCH-068 experience-clamp and multiplier-curve assertions). Data/query commands accept an optional leading player index (1=host, 2=first farmhand, etc., from `Game1.getAllFarmers()`; omitted = current player), e.g. `fish_addstars 2 20` and `fish_bonus 2` (BATCH-045).
 
 ---
 
-## 12. 资深玩家速查 / Quick Reference
+## 13. 资深玩家速查 / Quick Reference
 
 | 目标 | 条件 / 数值 |
 |---|---|
@@ -364,8 +386,12 @@ English: Fifteen SMAPI console commands cover level/stats editing, inspection, d
 | 持久战奖励 | 失败 ≥60 秒 → 海泡布丁；30~60 秒 → 50% +3 料理；30 秒巅峰提示 |
 | 蓄力槽保护 | ≤20% → ×0.80，≤1% → ×0.50（全局，非鱼王） |
 | 鱼王豁免 | 五大传奇鱼：全部系统豁免，一次钓获直接给皇冠 |
-| 非鱼类上限 | 等级 8（数量 4 倍封顶，BATCH-060；品质不提升） |
-| 一次成功最大收益 | 完美 +10 + round(调整后难度/50)，按下一称号上限封顶 |
+| 非鱼类上限 | 等级 8（数量 8 倍封顶，BATCH-062；品质不提升） |
+| 一次成功最大收益 | (完美 +10 + round(调整后难度/50)) × 固定钓鱼等级系数 max(等级,1)×0.1，保底 +1，按下一称号上限封顶（BATCH-067） |
+| 经验倍数 | 1~10 级 max(1, round(level×0.5))（10 级 = ×5）；10~100 级线性 ×5→×20（50 级 ×12、100 级 ×20；BATCH-068） |
+| 经验难度钳制 | 经验公式难度输入 ∈ [原生难度, 120]：负数等级/力竭按原生难度重算（不低于未装模组），超 120 按 120（BATCH-068） |
+| 蟹笼 | 每次收获 +1 等级（固定，不吃系数）；经验原生 5 点（BATCH-065） |
+| 节日钓鱼 | `EnableFestivalFishingMods` 默认 false = 三个钓鱼节日完全原生；true = 模组规则 + 节日分数按数量倍数翻倍（BATCH-066） |
 | 89 级增长上限 | 88 及以下最多升到 89（超高难入口）；89 级以上每次成功最多 +6 级（100 封顶，BATCH-060 由 +3 上调） |
 | 连续失败逃跑减速 | 调整后难度>100（挑战鱼饵同样参与，95 级以上也吃）：连续失败 0→5 次，低条区逃跑减速线性增强到 -10 级等效（≤20% ×0.60、≤1% ×0.20）；成功清零；鱼王豁免 |
 | 小游戏浮动提示 | 动作提示=左缘距绿条右缘 24px（左对齐，锚点 x+124）；其他提示=右缘距绿条左缘 50px（右对齐，锚点 x+14，距绿条绝对像素写死）；绿条靠屏幕边缘时自动翻到另一侧（BATCH-058O）；字体=星露谷 dialogueFont + 右下黑阴影 + 非常淡的蓝/红描边（向白色混合 85%）；长文本按最大 420px 折行、每段最多 3 行，超长内容拆成续集提示排队显示（BATCH-058C/058G/058H/058K/058L/058M/058N/058O） |
@@ -376,7 +402,7 @@ English: Fifteen SMAPI console commands cover level/stats editing, inspection, d
 
 ### 策略要点（面向想冲 100 级/全皇冠的玩家）
 
-- **完美钓获性价比最高**：0 脱杆 +10，还附带 `round(难度/50)` 额外收益；高等级后“挑战宣言”每次小游戏都会出现。
+- **完美钓获性价比最高**：0 脱杆 +10，还附带 `round(难度/50)` 额外收益；但最终增长受固定钓鱼等级系数缩放——满级（10 级）才是全速，低等级钓鱼时增长较慢，想快速冲级先升玩家钓鱼等级。
 - **冲级节奏**：越级限制意味着每个称号区间都要多次成功；先冲高基础难度的鱼（如狗鱼 60、海参类）能更快到达 120 皇冠阈值——`等级 ≈ (120/原版难度 − 1)` 对应的分段倍数可查 2.4 锚点（原版难度 60 只需约 8 级即达标）。
 - **皇冠 → 手感**：皇冠不再加隐藏钓鱼等级，而是提高鱼竿熟练度 α（0→100%），高 α 下绿条按下即定速、无惯性、撞边钳制，操作更跟手；满 61 可计数皇冠后小游戏体验最顺。
 - **全皇冠顺序**：56 条原生普通真鱼 + 5 条传奇鱼；Mod 鱼皇冠只显示不计 α，别先刷 Mod 鱼。
@@ -386,4 +412,6 @@ English: Fifteen SMAPI console commands cover level/stats editing, inspection, d
 - **巨型鱼展示**是限时“战利品”：进家门即失效，想给村民看鱼就钓到后立刻举着逛。
 - 触底（-10）后再失败会得到完整升级建议，提示你该换鱼竿/鱼饵/料理。
 
-> 注：本 Wiki 为静态文档，仅在收到明确指令时更新（2026-08-12 更新至 BATCH-041）。
+- **经验流向**：钓鱼等级 10 级封顶后经验全部流入原生精通系统；高难度等级经验倍率可观（100 级 ×20 + 基数钳制 120），刷精通点很快，但经验基数不会因调整后难度无限膨胀（BATCH-068）。
+
+> 注：本 Wiki 为静态文档，仅在收到明确指令时更新（2026-08-16 更新至 BATCH-068，同步 BATCH-062 数量倍数 = 等级×1）。

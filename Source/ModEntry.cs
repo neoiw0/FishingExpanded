@@ -181,6 +181,14 @@ namespace FishingExpanded
                 () => Helper.Translation.Get("config.randomFishBehavior.name"),
                 () => Helper.Translation.Get("config.randomFishBehavior.tooltip"));
 
+            // BATCH-066: 节日钓鱼开关（默认关=鱿鱼节/鳟鱼大赛/冰雪节完全原生；开启=模组规则照常+分数按数量倍数翻倍）
+            api.AddBoolOption(
+                ModManifest,
+                () => Config.EnableFestivalFishingMods,
+                value => Config.EnableFestivalFishingMods = value,
+                () => Helper.Translation.Get("config.festivalFishing.name"),
+                () => Helper.Translation.Get("config.festivalFishing.tooltip"));
+
             RegisterGmcmResetSection(api);
         }
 
@@ -1080,6 +1088,76 @@ namespace FishingExpanded
             Report("蟹笼: 狗鱼仍为真鱼", crabNotVanillaFish, $"128 → {DifficultyManager.IsNonFishItem("(O)128")}");
             Report("蟹笼: 上限=8", crabNonFishLevelCap, $"715 上限 {DifficultyManager.GetMaxDifficultyLevel("(O)715")}");
             Report("蟹笼: 数量倍数 8级=8", crabQuantity8, $"实际 {Utils.DifficultyCalculator.GetQuantityMultiplier(8)}");
+
+            // BATCH-066: 节日钓鱼开关（只读断言；不触碰任何状态）
+            bool festivalOff = !Services.FestivalFishingService.IsFestivalFishingActive();
+            bool festivalDefaultOff = !(Config?.EnableFestivalFishingMods ?? false);
+            bool festivalNativeOff = !Services.FestivalFishingService.IsVanillaFestivalMode();
+            Report("节日: 非节日判定=false", festivalOff, $"IsFestivalFishingActive={Services.FestivalFishingService.IsFestivalFishingActive()}");
+            Report("节日: 开关默认=关", festivalDefaultOff, $"EnableFestivalFishingMods={Config?.EnableFestivalFishingMods}");
+            Report("节日: 非节日原生门=false", festivalNativeOff, $"IsVanillaFestivalMode={Services.FestivalFishingService.IsVanillaFestivalMode()}");
+
+            // BATCH-067: 固定钓鱼等级系数 + 成功保底 +1 + 挑战掉星折扣（纯函数只读）
+            float f0 = Utils.DifficultyCalculator.GetFishingLevelGainFactor(0);
+            float f1 = Utils.DifficultyCalculator.GetFishingLevelGainFactor(1);
+            float f5 = Utils.DifficultyCalculator.GetFishingLevelGainFactor(5);
+            float f10 = Utils.DifficultyCalculator.GetFishingLevelGainFactor(10);
+            Report("系数: 0级=0.1", Math.Abs(f0 - 0.1f) < 1e-4, $"实际 {f0:F2}");
+            Report("系数: 1级=0.1", Math.Abs(f1 - 0.1f) < 1e-4, $"实际 {f1:F2}");
+            Report("系数: 5级=0.5", Math.Abs(f5 - 0.5f) < 1e-4, $"实际 {f5:F2}");
+            Report("系数: 10级=1.0", Math.Abs(f10 - 1.0f) < 1e-4, $"实际 {f10:F2}");
+            Report("保底: 1级完美=+1", Utils.DifficultyCalculator.GetRequestedLevelGain(10, 0f, 1) == 1,
+                $"实际 {Utils.DifficultyCalculator.GetRequestedLevelGain(10, 0f, 1)}");
+            Report("保底: 1级2脱杆=+1", Utils.DifficultyCalculator.GetRequestedLevelGain(2, 0f, 1) == 1,
+                $"实际 {Utils.DifficultyCalculator.GetRequestedLevelGain(2, 0f, 1)}");
+            Report("系数: 10级完美=+10", Utils.DifficultyCalculator.GetRequestedLevelGain(10, 0f, 10) == 10,
+                $"实际 {Utils.DifficultyCalculator.GetRequestedLevelGain(10, 0f, 10)}");
+            Report("系数: 10级高难500=+20", Utils.DifficultyCalculator.GetRequestedLevelGain(10, 500f, 10) == 20,
+                $"实际 {Utils.DifficultyCalculator.GetRequestedLevelGain(10, 500f, 10)}");
+            Report("掉星: 0星×倍数10=12", Utils.DifficultyCalculator.ApplyChallengeStarMultiplier(30, 0.4f) == 12,
+                $"实际 {Utils.DifficultyCalculator.ApplyChallengeStarMultiplier(30, 0.4f)}");
+            Report("掉星: 0星×倍数1=1(兜底)", Utils.DifficultyCalculator.ApplyChallengeStarMultiplier(3, 0.4f) == 1,
+                $"实际 {Utils.DifficultyCalculator.ApplyChallengeStarMultiplier(3, 0.4f)}");
+            Report("掉星: 无掉星不变", Utils.DifficultyCalculator.ApplyChallengeStarMultiplier(30, 1f) == 30,
+                $"实际 {Utils.DifficultyCalculator.ApplyChallengeStarMultiplier(30, 1f)}");
+
+            // BATCH-068: 原生经验重算 + 难度钳制（纯函数只读；复刻原生公式 1188-1203；上限=120 用户确认）
+            Report("经验: 原生70普通=26", Utils.DifficultyCalculator.GetNativeExperience(0, 70f, false, false, false) == 26,
+                $"实际 {Utils.DifficultyCalculator.GetNativeExperience(0, 70f, false, false, false)}");
+            Report("经验: 完美+140%=62", Utils.DifficultyCalculator.GetNativeExperience(0, 70f, false, true, false) == 62,
+                $"实际 {Utils.DifficultyCalculator.GetNativeExperience(0, 70f, false, true, false)}");
+            Report("经验: 宝箱+120%=57", Utils.DifficultyCalculator.GetNativeExperience(0, 70f, true, false, false) == 57,
+                $"实际 {Utils.DifficultyCalculator.GetNativeExperience(0, 70f, true, false, false)}");
+            Report("经验: Boss×5=195", Utils.DifficultyCalculator.GetNativeExperience(0, 110f, false, false, true) == 195,
+                $"实际 {Utils.DifficultyCalculator.GetNativeExperience(0, 110f, false, false, true)}");
+            Report("经验: 品质4=38", Utils.DifficultyCalculator.GetNativeExperience(4, 70f, false, false, false) == 38,
+                $"实际 {Utils.DifficultyCalculator.GetNativeExperience(4, 70f, false, false, false)}");
+            Report("钳制: 低于原生→原生", Utils.DifficultyCalculator.GetExperienceDifficulty(35f, 70f) == 70f,
+                $"实际 {Utils.DifficultyCalculator.GetExperienceDifficulty(35f, 70f):F0}");
+            Report("钳制: 力竭80→原生110", Utils.DifficultyCalculator.GetExperienceDifficulty(80f, 110f) == 110f,
+                $"实际 {Utils.DifficultyCalculator.GetExperienceDifficulty(80f, 110f):F0}");
+            Report("钳制: 超上限→120", Utils.DifficultyCalculator.GetExperienceDifficulty(2500f, 70f) == 120f,
+                $"实际 {Utils.DifficultyCalculator.GetExperienceDifficulty(2500f, 70f):F0}");
+            Report("钳制: 中间不变", Utils.DifficultyCalculator.GetExperienceDifficulty(100f, 70f) == 100f,
+                $"实际 {Utils.DifficultyCalculator.GetExperienceDifficulty(100f, 70f):F0}");
+            Report("钳制: 边界120=120", Utils.DifficultyCalculator.GetExperienceDifficulty(120f, 70f) == 120f,
+                $"实际 {Utils.DifficultyCalculator.GetExperienceDifficulty(120f, 70f):F0}");
+
+            // BATCH-068: 经验倍数曲线（10 级保持 ×5、100 级 ×20、10~100 线性；1~10 现状）
+            Report("倍数: 0级=1", Utils.DifficultyCalculator.GetExperienceMultiplier(0) == 1,
+                $"实际 {Utils.DifficultyCalculator.GetExperienceMultiplier(0)}");
+            Report("倍数: 负数=1", Utils.DifficultyCalculator.GetExperienceMultiplier(-5) == 1,
+                $"实际 {Utils.DifficultyCalculator.GetExperienceMultiplier(-5)}");
+            Report("倍数: 5级=3(现状)", Utils.DifficultyCalculator.GetExperienceMultiplier(5) == 3,
+                $"实际 {Utils.DifficultyCalculator.GetExperienceMultiplier(5)}");
+            Report("倍数: 10级=5(保持)", Utils.DifficultyCalculator.GetExperienceMultiplier(10) == 5,
+                $"实际 {Utils.DifficultyCalculator.GetExperienceMultiplier(10)}");
+            Report("倍数: 13级=6", Utils.DifficultyCalculator.GetExperienceMultiplier(13) == 6,
+                $"实际 {Utils.DifficultyCalculator.GetExperienceMultiplier(13)}");
+            Report("倍数: 50级=12", Utils.DifficultyCalculator.GetExperienceMultiplier(50) == 12,
+                $"实际 {Utils.DifficultyCalculator.GetExperienceMultiplier(50)}");
+            Report("倍数: 100级=20", Utils.DifficultyCalculator.GetExperienceMultiplier(100) == 20,
+                $"实际 {Utils.DifficultyCalculator.GetExperienceMultiplier(100)}");
 
             FishingLog.Log($"======== 自测结果: {pass} 通过 / {fail} 失败 ========", fail == 0 ? LogLevel.Info : LogLevel.Error);
         }

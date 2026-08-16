@@ -42,6 +42,15 @@ namespace FishingExpanded.Patches
             public int CreateFishCalls { get; set; }
             public bool AllowAdditionalCreateFish { get; set; }
             public bool HarvestLimited { get; set; } // BATCH-061: 本次收获超过每日限额（数量已清零，经验由 gainExperience 前缀读取）
+
+            // BATCH-068: 经验基数补偿所需事实——原生难度（构造快照，未乘难度倍数）、实际传入难度
+            // （负数等级=调整后；力竭后=有效难度）、以及重算原生经验所需的品质/宝箱/完美/Boss 标志。
+            public float NativeDifficulty { get; set; }
+            public float PassedDifficulty { get; set; }
+            public int FishQuality { get; set; }
+            public bool TreasureCaught { get; set; }
+            public bool WasPerfect { get; set; }
+            public bool IsBossFish { get; set; }
         }
 
         // BATCH-009: 以玩家+鱼ID隔离待处理事实，不修改原生动画参数
@@ -326,19 +335,38 @@ namespace FishingExpanded.Patches
                 method.Name == nameof(SpriteBatch.Draw);
         }
 
-        /// <summary>BATCH-009/014: pullFishFromWater Prefix - 只记录数据，不修改numCaught（鱼王豁免）</summary>
+        /// <summary>BATCH-009/014: pullFishFromWater Prefix - 只记录数据，不修改numCaught（鱼王豁免）。
+        /// BATCH-068: 签名扩展为完整原生参数（fishQuality/treasureCaught/wasPerfect/isBossFish），
+        /// 记录经验基数补偿所需事实（原生难度/实际传入难度/品质/宝箱/完美/Boss）。</summary>
         [HarmonyPatch(nameof(FishingRod.pullFishFromWater))]
         [HarmonyPrefix]
         public static void PullFishFromWater_Prefix(
             FishingRod __instance,
             string fishId,
             int fishSize,
+            int fishQuality,
             int fishDifficulty,
-            int numCaught,
-            bool fromFishPond)
+            bool treasureCaught,
+            bool wasPerfect,
+            bool fromFishPond,
+            string setFlagOnCatch,
+            bool isBossFish,
+            int numCaught)
         {
             try
             {
+                // BATCH-066: 节日原生模式（开关关闭）——不记录待处理事实：
+                // 被动节日无倍数/无结算数据；冰雪节（事件型）原生结算走 Event.caughtFish 不消费
+                // pending，跳过记录可同时杜绝残留污染下一杆。
+                if (Services.FestivalFishingService.IsVanillaFestivalMode())
+                {
+                    FishingLog.Log(
+                        $"[节日] 原生模式跳过 pending 记录 | 鱼ID: {Utils.SpecialFishHelper.NormalizeItemId(fishId)} | " +
+                        $"开关关闭（节日完全原生）",
+                        LogLevel.Info);
+                    return;
+                }
+
                 Farmer owner = __instance.getLastFarmerToUse();
                 if (owner == null || !owner.IsLocalPlayer || fromFishPond)
                     return;
@@ -368,6 +396,7 @@ namespace FishingExpanded.Patches
                 float adjustedDifficulty = fishDifficulty;
                 bool hasChallengeBait = false;
                 float elapsedSeconds = 0f;
+                float nativeDifficulty = 0f; // BATCH-068: 原生难度（构造快照，未乘难度倍数）
                 if (Game1.activeClickableMenu is StardewValley.Menus.BobberBar bobberBar)
                 {
                     missCount = BobberBarPatches.GetMissCount(bobberBar);
@@ -376,6 +405,7 @@ namespace FishingExpanded.Patches
                         adjustedDifficulty = trackedDifficulty;
                     hasChallengeBait = BobberBarPatches.HasChallengeBait(bobberBar);
                     elapsedSeconds = BobberBarPatches.GetElapsedSeconds(bobberBar);
+                    nativeDifficulty = BobberBarPatches.GetOriginalDifficulty(bobberBar);
                 }
 
                 // BATCH-038: 万能鱼饵加成判定（难度等级>0 且原生本应给两条鱼，即非挑战鱼饵的 numCaught>=2）；
@@ -409,7 +439,13 @@ namespace FishingExpanded.Patches
                     WildBaitBonus = wildBaitBonus,
                     ChallengeBonusActive = challengeBonusActive,
                     ChallengeStarMultiplier = challengeStarMultiplier,
-                    HasChallengeBait = hasChallengeBait
+                    HasChallengeBait = hasChallengeBait,
+                    NativeDifficulty = nativeDifficulty, // BATCH-068: 经验基数补偿事实
+                    PassedDifficulty = fishDifficulty,
+                    FishQuality = fishQuality,
+                    TreasureCaught = treasureCaught,
+                    WasPerfect = wasPerfect,
+                    IsBossFish = isBossFish
                 };
 
                 FishingLog.Log(
@@ -432,6 +468,12 @@ namespace FishingExpanded.Patches
         {
             try
             {
+                // BATCH-066: 节日原生模式（开关关闭）——数量倍数/每日限额等不生效。
+                // 冰雪节 fishCaught=false 不调用 doneHoldingFish（CreateFish 天然不触发），
+                // 此门覆盖被动节日（鱿鱼节/鳟鱼大赛）的 CreateFish 路径。
+                if (Services.FestivalFishingService.IsVanillaFestivalMode())
+                    return;
+
                 Farmer owner = __instance.getLastFarmerToUse();
                 if (owner == null || !owner.IsLocalPlayer || __result == null)
                     return;
@@ -456,15 +498,18 @@ namespace FishingExpanded.Patches
 
                     // BATCH-038: 万能鱼饵原本给两条鱼时 +10 条（难度等级>0）；挑战鱼饵 5 分钟内成功 ×1.5 向上取整。
                     // BATCH-056: 超过 5 分钟按掉星惩罚（每颗 −20%，替换原“直接取消 ×1.5”）。
+                    // BATCH-067: 掉星折扣移到乘完等级倍数之后，作用于最终数量（回归 GAME-DESIGN §7.5“每掉 1 颗最终鱼获 −20%”），
+                    // 并兜底 ≥1（原实现先对原生 3 条打折 round(3×0.4)=1 再乘倍数，高倍数下实际折扣比设计多最多 20%）。
                     if (data.WildBaitBonus)
                         finalStack = nativeStack + 10;
                     else if (data.ChallengeBonusActive)
                         finalStack = (long)Math.Ceiling(nativeStack * 1.5);
-                    if (data.ChallengeStarMultiplier < 1f)
-                        finalStack = (long)Math.Round(nativeStack * data.ChallengeStarMultiplier);
 
                     if (data.Multiplier > 1)
                         finalStack *= data.Multiplier;
+
+                    if (data.ChallengeStarMultiplier < 1f)
+                        finalStack = Utils.DifficultyCalculator.ApplyChallengeStarMultiplier(finalStack, data.ChallengeStarMultiplier);
 
                     __result.Stack = (int)Math.Min(int.MaxValue, finalStack);
                     FishingLog.Log(
@@ -534,6 +579,16 @@ namespace FishingExpanded.Patches
         internal static void ClearPending()
         {
             _pendingFish.Clear();
+        }
+
+        /// <summary>BATCH-066: 消费式移除单个玩家的单鱼 pending（冰雪节 Event.caughtFish 结算后调用；
+        /// 原生不走 Farmer.caughtFish，pending 必须在此消费，否则残留污染下一杆）。</summary>
+        internal static void RemovePending(Farmer owner, string fishId)
+        {
+            if (owner == null || string.IsNullOrEmpty(fishId))
+                return;
+
+            _pendingFish.Remove(GetPendingKey(owner, fishId));
         }
 
         private static void ClearPending(FishingRod rod)
@@ -669,6 +724,11 @@ namespace FishingExpanded.Patches
         {
             try
             {
+                // BATCH-066: 节日原生模式（开关关闭）——不改写收藏尺寸（被动节日）。
+                // 冰雪节不走 Farmer.caughtFish，天然不经过这里。
+                if (Services.FestivalFishingService.IsVanillaFestivalMode())
+                    return;
+
                 if (from_fish_pond || !__instance.IsLocalPlayer || size <= 0)
                     return;
 
@@ -702,6 +762,11 @@ namespace FishingExpanded.Patches
         {
             try
             {
+                // BATCH-066: 节日原生模式（开关关闭）——不结算难度等级/皇冠/巨型鱼/星之果茶/提示。
+                // 冰雪节不走 Farmer.caughtFish，天然不经过这里。
+                if (Services.FestivalFishingService.IsVanillaFestivalMode())
+                    return;
+
                 // 只处理正常钓鱼（非鱼塘）
                 if (from_fish_pond || !__instance.IsLocalPlayer)
                     return;
@@ -712,6 +777,24 @@ namespace FishingExpanded.Patches
 
                 data.SuccessRecorded = true;
 
+                // BATCH-066: 鱿鱼节分数补差（仅开关开启且为鱿鱼 (O)151）。
+                // 原生 Farmer.caughtFish 已 +numberCaught 分（1 倍）；这里补 (倍数−1)×numberCaught，
+                // 总分 = numberCaught × 数量倍数（例：难度 10 → 一次给 10 个鱿鱼的分）。
+                if (Services.FestivalFishingService.IsSquidFest() && fishId == "(O)151" && data.Multiplier > 1)
+                {
+                    int bonusScore = numberCaught * (data.Multiplier - 1);
+                    if (bonusScore > 0)
+                    {
+                        Game1.stats.Increment(
+                            StardewValley.Constants.StatKeys.SquidFestScore(Game1.dayOfMonth, Game1.year),
+                            bonusScore);
+                        FishingLog.Log(
+                            $"[节日] 鱿鱼节分数补差 | 玩家: {__instance.UniqueMultiplayerID} | " +
+                            $"数量倍数: {data.Multiplier} | 原生数量: {numberCaught} | 补分: +{bonusScore}",
+                            LogLevel.Info);
+                    }
+                }
+
                 // BATCH-010: 根据脱杆次数记录原始等级增长（区间限制由 DifficultyManager 统一执行）
                 int baseLevelGain = data.MissCount switch
                 {
@@ -720,11 +803,14 @@ namespace FishingExpanded.Patches
                     2 => 2,
                     _ => 1
                 };
-                // BATCH-029: 每次成功额外增加 round(调整后难度/50)（例：调整后难度500 → +10），与脱杆基数叠加后统一交给称号区间封顶
-                int difficultyGain = (int)Math.Round(data.AdjustedDifficulty / 50f);
+                // BATCH-029: 每次成功额外增加 round(调整后难度/50)（例：调整后难度500 → +10），与脱杆基数叠加后统一交给称号区间封顶。
+                // BATCH-067: 请求增益整体乘固定钓鱼等级系数（max(等级,1)×0.1：1级×0.1、10级×1.0=现有速度）并保底 +1。
+                // 只读 __instance.fishingLevel 基础字段（不含食物/饮料 buff 与助战临时等级）。
+                int baseFishingLevel = __instance.fishingLevel.Value;
+                int requestedGain = Utils.DifficultyCalculator.GetRequestedLevelGain(baseLevelGain, data.AdjustedDifficulty, baseFishingLevel);
 
                 int oldLevel = DifficultyManager.GetDifficultyLevel(fishId, __instance);
-                int actualLevelGain = DifficultyManager.RecordSuccess(fishId, baseLevelGain + difficultyGain, __instance);
+                int actualLevelGain = DifficultyManager.RecordSuccess(fishId, requestedGain, __instance);
                 int newLevel = DifficultyManager.GetDifficultyLevel(fishId, __instance);
 
                 // 高难度星标必须在成功钓起后才写入；鱼王没有待处理数据，不会进入这里。
@@ -752,7 +838,8 @@ namespace FishingExpanded.Patches
 
                 FishingLog.Log(
                     $"[Farmer] 难度等级更新 | 鱼ID: {fishId} | " +
-                    $"脱杆: {data.MissCount}次 | 基础增长: +{baseLevelGain} | 额外难度增益: +{difficultyGain} | 实际增长: +{actualLevelGain} | {oldLevel} → {newLevel}",
+                    $"脱杆: {data.MissCount}次 | 基础增长: +{baseLevelGain} | 额外难度增益: +{(int)Math.Round(data.AdjustedDifficulty / 50f)} | " +
+                    $"钓鱼等级系数: ×{Utils.DifficultyCalculator.GetFishingLevelGainFactor(baseFishingLevel):F1} | 请求增长: +{requestedGain} | 实际增长: +{actualLevelGain} | {oldLevel} → {newLevel}",
                     LogLevel.Info);
 
                 // BATCH-012/022: 显示成功HUD提示（封顶检测，传入旧等级）
@@ -772,6 +859,54 @@ namespace FishingExpanded.Patches
             catch (Exception ex)
             {
                 FishingLog.Log($"caughtFish Postfix 失败: {ex}", LogLevel.Error);
+            }
+        }
+    }
+
+    /// <summary>BATCH-066: 事件型节日补分——冰雪节（winter8）钓鱼成功走 Event.caughtFish
+    /// （原生 festivalScore++ 每次成功 +1 分），模组开启时补 (数量倍数−1) 分，总分=数量倍数 分/次；
+    /// 同时消费式移除本次 pending（原生不走 Farmer.caughtFish，不消费会残留污染下一杆）。
+    /// 仅模组开关开启时生效；原生模式（开关关闭）本 Postfix 无操作（无 pending 且条件不符）。</summary>
+    [HarmonyPatch(typeof(Event))]
+    internal static class EventFestivalPatches
+    {
+        [HarmonyPatch(nameof(Event.caughtFish))]
+        [HarmonyPostfix]
+        public static void CaughtFish_Postfix(Event __instance, string itemId, int size, Farmer who)
+        {
+            try
+            {
+                // 仅本地玩家 + 冰雪节 + 开关开启（原生模式无 pending，直接短路）
+                if (who == null || !who.IsLocalPlayer || !__instance.isSpecificFestival("winter8") ||
+                    !ModEntry.Config.EnableFestivalFishingMods)
+                {
+                    return;
+                }
+
+                // 与原生 winter8 分支同条件：size>0 且在冰湖比赛区域（TilePoint <79,43）
+                if (size <= 0 || who.TilePoint.X >= 79 || who.TilePoint.Y >= 43)
+                    return;
+
+                string fishId = Utils.SpecialFishHelper.NormalizeItemId(itemId);
+                if (!FishingRodPatches.TryGetPending(who, fishId, out var data))
+                    return;
+
+                int bonus = data.Multiplier - 1;
+                if (bonus > 0)
+                {
+                    who.festivalScore += bonus;
+                    FishingLog.Log(
+                        $"[节日] 冰雪节分数补差 | 玩家: {who.UniqueMultiplayerID} | 鱼ID: {fishId} | " +
+                        $"数量倍数: {data.Multiplier} | 补分: +{bonus} | 总分: {who.festivalScore}",
+                        LogLevel.Info);
+                }
+
+                // 消费式移除 pending（原生不走 Farmer.caughtFish，不消费会残留污染下一杆）
+                FishingRodPatches.RemovePending(who, fishId);
+            }
+            catch (Exception ex)
+            {
+                FishingLog.Log($"Event.caughtFish Postfix 失败: {ex}", LogLevel.Error);
             }
         }
     }

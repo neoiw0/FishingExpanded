@@ -20,6 +20,10 @@ namespace FishingExpanded.Patches
         {
             try
             {
+                // BATCH-066: 节日原生模式（开关关闭）——经验倍数不生效（被动节日；冰雪节原生就不给经验）
+                if (Services.FestivalFishingService.IsVanillaFestivalMode())
+                    return;
+
                 if (which != 1 || howMuch <= 0 || !__instance.IsLocalPlayer ||
                     !FishingRodPatches.TryBeginExperienceAdjustment(__instance, out var pendingFish))
                 {
@@ -31,6 +35,28 @@ namespace FishingExpanded.Patches
                 {
                     howMuch = 0;
                     return;
+                }
+
+                // BATCH-068: 经验基数重算（用户 2026-08-16 确认：低于原生难度→抬到原生水平，高于 120 上限→压到上限）——
+                // 负数难度等级（难度 ×0.5~0.95）或力竭衰减（非挑战鱼饵有效难度降到 80）使实际传入
+                // pullFishFromWater 的难度低于原生难度时，原生经验公式（(品质+1)×3 + 难度/3 + 宝箱/完美/Boss 加成）
+                // 会算出少于未装模组的经验；正数高等级调整后难度超 120 时经验基数不再随难度爆炸。
+                // 重算值 = f(clamp(传入难度, 原生难度, 120))，随后继续走经验倍数（负数倍数=1 自然不变）。
+                if (pendingFish.NativeDifficulty > 0f && pendingFish.PassedDifficulty > 0f &&
+                    (pendingFish.PassedDifficulty < pendingFish.NativeDifficulty ||
+                     pendingFish.PassedDifficulty > Utils.DifficultyCalculator.ExperienceDifficultyCap))
+                {
+                    float experienceDifficulty = Utils.DifficultyCalculator.GetExperienceDifficulty(
+                        pendingFish.PassedDifficulty, pendingFish.NativeDifficulty);
+                    int cappedExperience = Utils.DifficultyCalculator.GetNativeExperience(
+                        pendingFish.FishQuality, experienceDifficulty,
+                        pendingFish.TreasureCaught, pendingFish.WasPerfect, pendingFish.IsBossFish);
+                    FishingLog.Log(
+                        $"[FarmerFishingExperience] 经验基数重算 | 难度等级: {pendingFish.DifficultyLevel} | " +
+                        $"传入难度: {pendingFish.PassedDifficulty:F0} | 原生难度: {pendingFish.NativeDifficulty:F0} | " +
+                        $"钳制后: {experienceDifficulty:F0} | 经验: {howMuch} → {cappedExperience}",
+                        LogLevel.Info);
+                    howMuch = cappedExperience;
                 }
 
                 int multiplier = pendingFish.ExperienceMultiplier;

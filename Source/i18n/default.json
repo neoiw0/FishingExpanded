@@ -225,6 +225,8 @@
   "config.enableLogging.tooltip": "Turn off to suppress all Fishing Expanded log output.",
   "config.randomFishBehavior.name": "Fully random fish behavior (harder)",
   "config.randomFishBehavior.tooltip": "OFF (default): the same fish at the same level behaves identically until caught, so you can learn its pattern. ON: every attempt is completely random and never fixed - much harder.",
+  "config.festivalFishing.name": "Apply mod rules to fishing festivals",
+  "config.festivalFishing.tooltip": "OFF (default): fishing at the SquidFest, Trout Derby and Festival of Ice is completely vanilla (no difficulty levels, no quantity/experience multipliers, no mod effects). ON: mod rules apply at all three festivals, and festival scores scale with the quantity multiplier (e.g. difficulty 10 → 10 points per catch).",
   "config.reset.section": "Reset challenge data",
   "config.reset.sectionTooltip": "Two-step reset back to a fresh-install state.",
   "config.reset.warning1": "Clears the current player's difficulty levels, success/fail counts, consecutive fails, collection crowns and challenge crowns.",

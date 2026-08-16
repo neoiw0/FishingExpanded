@@ -441,6 +441,19 @@ namespace FishingExpanded.Patches
                 // BATCH-039: 消费持久战测试标志（构造边界；鱼王也消费并丢弃，避免泄漏到下一局）
                 float forcedPerseveranceSeconds = ModEntry.ConsumeForcePerseveranceSeconds();
 
+                // BATCH-066: 节日原生模式（开关关闭）——不注册实例数据、不改任何 ref 字段。
+                // 未注册实例 → Update_Prefix/Postfix、Draw_Postfix 全部自动跳过，Transpiler 注入的
+                // 静态方法（GetAlpha=0、GetFrameScale 60fps=1、内联 150 难度封顶对原生 difficulty<150
+                // 无影响）全部回落原生，实现"完全原生"。
+                if (Services.FestivalFishingService.IsVanillaFestivalMode())
+                {
+                    FishingLog.Log(
+                        $"[节日] 原生模式跳过 BobberBar 注入 | 鱼ID: {SpecialFishHelper.NormalizeItemId(whichFish)} | " +
+                        $"开关关闭（节日完全原生）",
+                        LogLevel.Info);
+                    return;
+                }
+
                 // BATCH-014: 鱼王类豁免所有规则
                 string normalizedFishId = SpecialFishHelper.NormalizeItemId(whichFish);
                 if (SpecialFishHelper.IsLegendaryFish(normalizedFishId))
@@ -948,6 +961,13 @@ namespace FishingExpanded.Patches
             return _instanceData.TryGetValue(instance, out var data) ? data.AdjustedDifficulty : 0f;
         }
 
+        /// <summary>BATCH-068: 读取该实例的原生难度（构造边界快照，未乘难度倍数；无实例返回 0）。
+        /// 供经验基数补偿使用：负数等级/力竭衰减使传入难度低于原生难度时，按原生难度重算经验。</summary>
+        public static float GetOriginalDifficulty(BobberBar instance)
+        {
+            return _instanceData.TryGetValue(instance, out var data) ? data.OriginalDifficulty : 0f;
+        }
+
         /// <summary>BATCH-038: 当前小游戏是否使用挑战鱼饵（结算边界读取）。</summary>
         public static bool HasChallengeBait(BobberBar instance)
         {
@@ -1387,6 +1407,10 @@ namespace FishingExpanded.Patches
         /// （0→10%、50→20%、70→40%、80→70%、90→100%、100→100%，点间线性）；d≤100 返回 1（原生不变）。</summary>
         public static float GetAccelerationBoost(BobberBar instance, float difficulty)
         {
+            // BATCH-066: 节日原生模式（开关关闭）→ 原生 1（无模组增幅）
+            if (Services.FestivalFishingService.IsVanillaFestivalMode())
+                return 1f;
+
             if (difficulty <= 100f)
                 return 1f;
 
@@ -1443,6 +1467,10 @@ namespace FishingExpanded.Patches
         /// <summary>BATCH-034: 帧率解耦缩放 k = dt×60（60fps=1 与原版逐帧完全一致；异常帧回退 1）。</summary>
         public static float GetFrameScale()
         {
+            // BATCH-066: 节日原生模式（开关关闭）→ 原生逐帧（k=1，60fps 恒等）
+            if (Services.FestivalFishingService.IsVanillaFestivalMode())
+                return 1f;
+
             float dt = (float)Game1.currentGameTime.ElapsedGameTime.TotalSeconds;
             if (dt <= 0f)
                 return 1f;
