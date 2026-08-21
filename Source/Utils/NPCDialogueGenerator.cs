@@ -112,22 +112,25 @@ namespace FishingExpanded.Utils
         };
 
         /// <summary>生成随机的鱼赞美文案（i18n 优先，缺失时回退到内置中文列表）。
-        /// BATCH-033：尺寸统一显示厘米（fishSize×2.54 取整），与手持鱼旁原生尺寸数字一致。</summary>
+        /// BATCH-033：尺寸统一显示厘米（fishSize×2.54 取整），与手持鱼旁原生尺寸数字一致。
+        /// BATCH-073：英文模式恢复原生英寸口径（fishSize + in.），其他语言继续厘米。</summary>
         public static string GenerateFishPraise(string fishName, int fishSize)
         {
             try
             {
                 string[] templates = LoadPraiseTemplates();
                 int fishSizeCm = (int)Math.Round(fishSize * 2.54);
+                bool isEnglish = LocalizedContentManager.CurrentLanguageCode == LocalizedContentManager.LanguageCode.en;
+                int displaySize = isEnglish ? fishSize : fishSizeCm;
 
                 // Bug修复：Game1.random可能为null（极端情况）
                 if (Game1.random == null)
                 {
-                    return string.Format(templates[0], fishName, fishSizeCm);
+                    return string.Format(templates[0], fishName, displaySize);
                 }
 
                 int index = Game1.random.Next(templates.Length);
-                return string.Format(templates[index], fishName, fishSizeCm);
+                return string.Format(templates[index], fishName, displaySize);
             }
             catch (Exception ex)
             {

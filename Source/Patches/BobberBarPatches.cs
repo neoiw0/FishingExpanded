@@ -144,7 +144,11 @@ namespace FishingExpanded.Patches
         private const float BarWidth = 36f;
         private const float OtherTipBarGapPixels = 50f; // 其他提示右缘距绿条左缘（用户定稿）
         private const float ActionTipBarGapPixels = 24f; // 动作提示左缘距绿条右缘（用户定稿）
-        private const float TipMaxWidthPixels = 420f; // 提示文字最大宽度（写死，防止长文案一路铺到屏幕右缘）
+        private static float GetTipMaxWidth()
+        {
+            return Game1.uiViewport.Width / 3f; // BATCH-070: 超过 1/3 UI 屏宽换行（用户定稿）
+        }
+
         private const int TipMaxLines = 3; // BATCH-058L: 最多 3 行，超出截断加省略号
         private const float OtherTipAnchorX = BarLeftX - OtherTipBarGapPixels;   // 14（右缘距绿条左缘 50px）
         private const float ActionTipAnchorX = BarLeftX + BarWidth + ActionTipBarGapPixels; // 124（左缘距绿条右缘 24px）
@@ -177,7 +181,7 @@ namespace FishingExpanded.Patches
             if (k <= 0f || float.IsNaN(k) || float.IsInfinity(k))
                 k = 1f;
             float ux = x * k;
-            float availableWidth = Math.Min(TipMaxWidthPixels * k,
+            float availableWidth = Math.Min(GetTipMaxWidth(),
                 rightAligned
                     ? Math.Max(120f * k, ux - 8f * 2f * k)
                     : Math.Max(120f * k, Game1.uiViewport.Width - ux - 8f * 2f * k));
@@ -251,7 +255,7 @@ namespace FishingExpanded.Patches
             float ux = tip.StartX * k;
 
             // BATCH-058G: 按可用宽度换行（其他提示向左扩展、动作提示向右扩展；中英文都按词/字符折行）
-            float availableWidth = Math.Min(TipMaxWidthPixels * k, tip.RightAligned
+            float availableWidth = Math.Min(GetTipMaxWidth(), tip.RightAligned
                 ? Math.Max(120f * k, ux - screenMargin * 2f)
                 : Math.Max(120f * k, Game1.uiViewport.Width - ux - screenMargin * 2f));
             List<string> lines = WrapTipText(tipFont, tip.Text, availableWidth, tipScale);
@@ -415,6 +419,40 @@ namespace FishingExpanded.Patches
             return lines;
         }
 
+        /// <summary>构造函数 Prefix：消费 fish_next 强制鱼种标记，在原生 BobberBar 创建前替换目标鱼。
+        /// 必须使用原生期望的未限定 ID（如 151）；Mod 内部统一用 (O)151。</summary>
+        [HarmonyPatch(MethodType.Constructor, new Type[] {
+            typeof(string), typeof(float), typeof(bool), typeof(System.Collections.Generic.List<string>),
+            typeof(string), typeof(bool), typeof(string), typeof(bool)
+        })]
+        [HarmonyPrefix]
+        public static void Constructor_Prefix(ref string whichFish, ref string setFlagOnCatch, ref bool isBossFish)
+        {
+            try
+            {
+                string forcedFishId = ModEntry.ConsumeForceNextFish(Game1.player);
+                if (string.IsNullOrEmpty(forcedFishId))
+                    return;
+
+                string nativeFishId = forcedFishId.StartsWith("(O)", StringComparison.OrdinalIgnoreCase)
+                    ? forcedFishId.Substring(3)
+                    : forcedFishId;
+
+                whichFish = nativeFishId;
+                setFlagOnCatch = null; // 强制更换鱼种后丢弃原鱼临时 flag，避免错发邮件
+                isBossFish = false;    // 强制更换鱼种后不再是原鱼 Boss，避免错误全局消息/经验倍率
+
+                FishingLog.Log(
+                    $"[BobberBar] 强制鱼种生效 | 玩家: {Game1.player?.Name} | " +
+                    $"鱼ID: {SpecialFishHelper.NormalizeItemId(nativeFishId)} | 原生构造ID: {nativeFishId}",
+                    LogLevel.Info);
+            }
+            catch (Exception ex)
+            {
+                FishingLog.Log($"[BobberBarPatches] 强制鱼种消费失败: {ex}", LogLevel.Warn);
+            }
+        }
+
         /// <summary>构造函数 Postfix：调整 difficulty、fishSize、fishQuality（BATCH-014: 鱼王豁免）</summary>
         [HarmonyPatch(MethodType.Constructor, new Type[] {
             typeof(string), typeof(float), typeof(bool), typeof(System.Collections.Generic.List<string>),
@@ -449,7 +487,7 @@ namespace FishingExpanded.Patches
                 {
                     FishingLog.Log(
                         $"[节日] 原生模式跳过 BobberBar 注入 | 鱼ID: {SpecialFishHelper.NormalizeItemId(whichFish)} | " +
-                        $"开关关闭（节日完全原生）",
+                        $"开关关闭(节日完全原生)",
                         LogLevel.Info);
                     return;
                 }
@@ -459,7 +497,7 @@ namespace FishingExpanded.Patches
                 if (SpecialFishHelper.IsLegendaryFish(normalizedFishId))
                 {
                     FishingLog.Log(
-                        $"[BobberBar] 传奇鱼（鱼王）豁免规则 | 鱼ID: {normalizedFishId} | " +
+                        $"[BobberBar] 传奇鱼(鱼王)豁免规则 | 鱼ID: {normalizedFishId} | " +
                         $"保持原始difficulty: {___difficulty:F1}",
                         LogLevel.Info);
                     if (forcedPerseveranceSeconds > 0f)
@@ -549,7 +587,7 @@ namespace FishingExpanded.Patches
                     $"原始difficulty: {originalDifficulty:F1} | 调整后: {___difficulty:F1} (×{difficultyMultiplier:F2}) | " +
                     $"数量倍数: {quantityMultiplier} | fishSize(原生): {nativeFishSize} (结算×{DifficultyCalculator.GetFishSizeMultiplier(difficultyLevel):F2}) | 品质: {___fishQuality} | " +
                     $"加速增幅档: {GetAccelerationTier(difficultyLevel):P0} | 加速度增幅: ×{accelerationBoost:F2} | 跳鱼间隔: {instanceData.JumpIntervalSeconds:F0}s | 鱼竿熟练度α: {instanceData.Alpha:P0} | " +
-                    $"力竭: {instanceData.AdjustedDifficulty:F0}{(instanceData.AdjustedDifficulty >= 100f ? "（参与）" : "（不参与）")} | 挑战鱼饵: {instanceData.HasChallengeBait}" +
+                    $"力竭: {instanceData.AdjustedDifficulty:F0}{(instanceData.AdjustedDifficulty >= 100f ? "(参与)" : "(不参与)")} | 挑战鱼饵: {instanceData.HasChallengeBait}" +
                     $" | barX: {___xPositionOnScreen} | barY: {___yPositionOnScreen} | viewportW: {Game1.viewport.Width}" +
                     (forcedPerseveranceSeconds > 0f ? $" | 持久战测试强制: {forcedPerseveranceSeconds:F0}s" : ""),
                     LogLevel.Info);
@@ -655,12 +693,12 @@ namespace FishingExpanded.Patches
                         {
                             var node = DifficultyCalculator.ExhaustionNodes[data.NextExhaustionNodeIndex];
                             data.NextExhaustionNodeIndex++;
-                            string rankName = ModEntry.ModHelper.Translation.Get(DifficultyCalculator.GetRankKey(data.DifficultyLevel));
+                            string rankName = ModEntry.GetDisplayRankName(data.DifficultyLevel);
                             int textIndex = Game1.random.Next(1, 11);
                             string key = $"hud.exhaust.{node.Minute:0}.{textIndex}";
                             string text = ModEntry.ModHelper.Translation.Get(key, new { rankName });
                             if (string.IsNullOrWhiteSpace(text) || text == key)
-                                text = $"[{rankName}]体力见底（{node.Minute:0}分钟）";
+                                text = $"[{rankName}]体力见底({node.Minute:0}分钟)";
                             if (data.HasChallengeBait)
                             {
                                 int appendIndex = Game1.random.Next(1, 11);
@@ -683,7 +721,7 @@ namespace FishingExpanded.Patches
                                 $"[BobberBar] 力竭节点 | 实例: {__instance.GetHashCode()} | 鱼ID: {data.FishId} | " +
                                 $"节点: {node.Minute:0}分钟 ({node.Percent:P0}) | 耗时: {data.BattleElapsedSeconds:F0}s | " +
                                 $"挑战鱼饵: {data.HasChallengeBait} | 文案: {text}" +
-                                (phraseInterrupted ? " | 短语打断（重录）" : ""),
+                                (phraseInterrupted ? " | 短语打断(重录)" : ""),
                                 LogLevel.Info);
                         }
 
@@ -981,13 +1019,15 @@ namespace FishingExpanded.Patches
         }
 
         /// <summary>BATCH-039: 30 秒失败奖励概率（50%）与奖励物品池（+3 钓鱼料理；海泡布丁 (O)265 为 60 秒专属）。
-        /// BATCH-052: 228 实为生鱼寿司（Maki Roll，无钓鱼加成）；海之菜肴真实 ID=242（Wiki 物品编号工具核验）。</summary>
+        /// BATCH-052: 228 实为生鱼寿司（Maki Roll，无钓鱼加成）；海之菜肴真实 ID=242（Wiki 物品编号工具核验）。
+        /// BATCH-073: 60 秒档海泡布丁概率改为 60%（用户确认）。</summary>
         private const double PerseveranceChance = 0.5;
+        private const double PerseveranceSeaFoamPuddingChance = 0.6;
         private const string PerseveranceSeaFoamPudding = "(O)265";
         private static readonly string[] PerseverancePlusThreeFoods = { "(O)242", "(O)728", "(O)730" };
 
-        /// <summary>BATCH-039: 持久战安慰奖励（失败单发边界调用一次；≥60 秒必得海泡布丁 (+4 钓鱼)，
-        /// 30~60 秒 50% 概率随机 +3 钓鱼料理；60 秒不叠加 30 秒抽奖（用户确认）；fish_persisttest 强制秒数优先）。
+        /// <summary>BATCH-039/073: 持久战安慰奖励（失败单发边界调用一次；≥60 秒 60% 概率海泡布丁 (+4 钓鱼)，
+        /// 40% 不发任何持久战奖励，不叠加 30 秒抽奖；30~60 秒 50% 概率随机 +3 钓鱼料理；fish_persisttest 强制秒数优先）。
         /// 发放走原生溢出菜单；提示入 FIFO 队列；每次失败最多一次。</summary>
         private static void TryGrantPerseveranceReward(InstanceData data)
         {
@@ -1002,6 +1042,8 @@ namespace FishingExpanded.Patches
                 string itemId;
                 if (elapsed >= 60f)
                 {
+                    if (Game1.random.NextDouble() >= PerseveranceSeaFoamPuddingChance)
+                        return;
                     itemId = PerseveranceSeaFoamPudding;
                 }
                 else if (elapsed >= 30f && Game1.random.NextDouble() < PerseveranceChance)
@@ -1601,8 +1643,11 @@ namespace FishingExpanded.Patches
                 if (data.HasChallengeBait)
                     return;
 
+                int countable = DifficultyManager.GetCountableCrownCount(player);
+                int flowCount = DifficultyManager.GetCountableFlowCrownCount(player);
+                int enlargedCount = DifficultyManager.GetCountableLevel100FlowCrownCount(player);
                 double chance = DifficultyCalculator.GetAssistChance(
-                    DifficultyManager.GetCountableCrownCount(player), DifficultyManager.CountableCrownTarget);
+                    countable, DifficultyManager.CountableCrownTarget, flowCount, enlargedCount);
                 if (!forced && (chance <= 0.0 || Game1.random.NextDouble() >= chance))
                     return;
 
@@ -1610,9 +1655,9 @@ namespace FishingExpanded.Patches
                 if (starredFish.Count == 0)
                     return;
 
-                // BATCH-035（用户修正）: 所有皇冠鱼被选中为助战鱼的概率相同（均匀随机）；助战等级随被选中鱼难度排位倾斜：
-                // 最高难度鱼 40 级助战概率 = 最低难度鱼 30 倍；最低+最高两条鱼平均助战等级 = 20。
-                string assistFishId = starredFish[Game1.random.Next(starredFish.Count)];
+                // BATCH-073: 触发后按权重选鱼——普通皇冠鱼权重 1，流动金冠鱼 +0.1%，增大流动金冠鱼再 +0.05%。
+                // 助战等级随被选中鱼难度排位倾斜（BATCH-035 保持）：最高难度鱼 40 级助战概率 = 最低难度鱼 30 倍。
+                string assistFishId = PickWeightedAssistFish(player, starredFish);
                 double assistRank = DifficultyManager.GetAssistRank(assistFishId, player, starredFish);
                 int assistLevel = DifficultyCalculator.GetRandomAssistLevel(assistRank);
                 RecordAssistObservation(assistFishId, assistRank, assistLevel);
@@ -1636,13 +1681,39 @@ namespace FishingExpanded.Patches
             }
         }
 
+
+        /// <summary>BATCH-073: 按金冠权重随机选择助战鱼。普通皇冠鱼权重 1，流动金冠鱼 +0.1%，增大流动金冠鱼再 +0.05%。</summary>
+        private static string PickWeightedAssistFish(Farmer player, List<string> candidates)
+        {
+            double totalWeight = 0.0;
+            var weights = new double[candidates.Count];
+            for (int i = 0; i < candidates.Count; i++)
+            {
+                double w = 1.0;
+                if (DifficultyManager.HasChallengeCrown(candidates[i], player))
+                    w += 0.001;
+                if (DifficultyManager.HasLevel100FlowCrown(candidates[i], player))
+                    w += 0.0005;
+                weights[i] = w;
+                totalWeight += w;
+            }
+
+            double roll = Game1.random.NextDouble() * totalWeight;
+            for (int i = 0; i < weights.Length; i++)
+            {
+                roll -= weights[i];
+                if (roll <= 0.0)
+                    return candidates[i];
+            }
+            return candidates[candidates.Count - 1];
+        }
         /// <summary>BATCH-035: 助战文案（20 条随机；i18n hud.assist.1~20，含鱼名与鱼职阶称号；缺失回退）。</summary>
         private static string PickAssistText(string fishId, int level)
         {
             try
             {
                 string fishName = ItemRegistry.Create(fishId)?.DisplayName ?? fishId;
-                string rankName = ModEntry.ModHelper.Translation.Get(DifficultyCalculator.GetRankKey(level));
+                string rankName = ModEntry.GetDisplayRankName(level);
                 int index = Game1.random.Next(1, 21);
                 string key = $"hud.assist.{index}";
                 string text = ModEntry.ModHelper.Translation.Get(key, new { fishName, rankName });
@@ -1681,7 +1752,7 @@ namespace FishingExpanded.Patches
         {
             try
             {
-                string rankName = ModEntry.ModHelper.Translation.Get(DifficultyCalculator.GetRankKey(level));
+                string rankName = ModEntry.GetDisplayRankName(level);
                 int index = Game1.random.Next(1, 11);
                 string key = $"hud.peak.{index}";
                 string text = ModEntry.ModHelper.Translation.Get(key, new { rankName });

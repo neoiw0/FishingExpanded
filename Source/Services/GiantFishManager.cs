@@ -29,10 +29,15 @@ namespace FishingExpanded.Services
             if (player == null)
                 return null;
 
-            if (!_displayDataByPlayer.TryGetValue(player.UniqueMultiplayerID, out var data) && create)
+            return GetDisplayData(player.UniqueMultiplayerID, create);
+        }
+
+        private static FishDisplayData GetDisplayData(long playerId, bool create)
+        {
+            if (!_displayDataByPlayer.TryGetValue(playerId, out var data) && create)
             {
                 data = new FishDisplayData();
-                _displayDataByPlayer[player.UniqueMultiplayerID] = data;
+                _displayDataByPlayer[playerId] = data;
             }
 
             return data;
@@ -57,6 +62,9 @@ namespace FishingExpanded.Services
                     $"难度等级: {level} | fishSize: {fishSize} | " +
                     $"视觉缩放: ×{DifficultyCalculator.GetVisualScale(level):F2}",
                     StardewModdingAPI.LogLevel.Info);
+
+                // BATCH-074：联机时把展示事实广播给其他客户端，使其他玩家屏幕也能看到该玩家手持鱼变大。
+                BroadcastGiantFishRecord(player.UniqueMultiplayerID, normalizedFishId, level, fishSize);
             }
         }
 
@@ -140,9 +148,12 @@ namespace FishingExpanded.Services
             string message = NPCDialogueGenerator.GenerateFishPraise(fishName, fishSize);
 
             // BATCH-058: 动物 NPC 先叫一声，再把赞美内容放在括号里（例：汪汪！！！（这条狗鱼竟然有388cm简直是奇迹））
+            // BATCH-073: 英文模式使用英文拟声词和英文叹号；中文保持原格式。
             string animalSound = GetAnimalSound(npc);
             if (!string.IsNullOrEmpty(animalSound))
-                message = $"{animalSound}！！！（{message}）";
+                message = IsEnglishGame()
+                    ? $"{animalSound}!!! ({message})"
+                    : $"{animalSound}！！！({message})";
 
             // 显示文本气泡
             npc.showTextAboveHead(message);
@@ -150,27 +161,42 @@ namespace FishingExpanded.Services
             // 记录触发
             displayData.NPCBubbleTriggered[npc.Name].Add(fishId);
 
+            // BATCH-074：联机时广播冒泡文案，使其他玩家屏幕看到同一 NPC 的一致赞美。
+            BroadcastNPCBubble(player, npc, fishId, fishSize, message);
+
             FishingLog.Log(
                 $"[GiantFishManager] NPC冒泡触发 | NPC: {npc.Name} | 鱼ID: {fishId} | " +
                 $"fishSize: {fishSize} | 文案: {message.Substring(0, Math.Min(30, message.Length))}...",
                 StardewModdingAPI.LogLevel.Info);
         }
 
-        /// <summary>BATCH-058: 按 NPC 类型识别动物叫声（宠物 Pet 按 petType=Dog/Cat；马 Horse；其他返回空=非动物）。
-        /// 每种动物 5 套叫声随机。</summary>
+        /// <summary>英文模式判断。</summary>
+        private static bool IsEnglishGame()
+        {
+            return LocalizedContentManager.CurrentLanguageCode == LocalizedContentManager.LanguageCode.en;
+        }
+
+        /// <summary>BATCH-058/073: 按 NPC 类型识别动物叫声（宠物 Pet 按 petType=Dog/Cat；马 Horse；其他返回空=非动物）。
+        /// 中文/英文各有多种随机叫声；英文模式使用英文拟声词。</summary>
         private static string GetAnimalSound(NPC npc)
         {
             if (npc is StardewValley.Characters.Pet pet)
             {
                 string type = pet.petType?.Value;
                 if (string.Equals(type, StardewValley.Characters.Pet.type_dog, StringComparison.OrdinalIgnoreCase))
-                    return PickSound(new[] { "汪汪", "汪！", "汪汪汪", "嗷呜～汪", "汪~汪" });
+                    return PickSound(IsEnglishGame()
+                        ? new[] { "Woof!", "Woof, woof!", "Arf!", "Ruff!", "Yip!", "Bow-wow!" }
+                        : new[] { "汪汪", "汪！", "汪汪汪", "嗷呜～汪", "汪~汪" });
                 if (string.Equals(type, StardewValley.Characters.Pet.type_cat, StringComparison.OrdinalIgnoreCase))
-                    return PickSound(new[] { "喵喵", "喵～", "喵呜", "喵喵喵", "咪" });
+                    return PickSound(IsEnglishGame()
+                        ? new[] { "Meow!", "Mrow!", "Meow meow!", "Mew!", "Mrrow!", "Mrow?" }
+                        : new[] { "喵喵", "喵～", "喵呜", "喵喵喵", "咪" });
                 return null; // 乌龟等其他宠物类型暂不加叫声
             }
             if (npc is StardewValley.Characters.Horse)
-                return PickSound(new[] { "嘶嘶", "嘶——", "唏律律", "吁——", "嘶～" });
+                return PickSound(IsEnglishGame()
+                    ? new[] { "Neigh!", "Whinny!", "Nicker!", "Snort!", "Neigh-heigh!", "Hee hee!" }
+                    : new[] { "嘶嘶", "嘶——", "唏律律", "吁——", "嘶～" });
             return null;
         }
 
@@ -206,13 +232,18 @@ namespace FishingExpanded.Services
             return result;
         }
 
-        /// <summary>只清理进入 FarmHouse 的玩家自己的超大鱼事实。</summary>
+        /// <summary>只清理进入 FarmHouse 的玩家自己的超大鱼事实。
+        /// BATCH-074：同时重置 NPC 冒泡/对话触发记录，使进房后的下一次超大鱼可再次获得赞美。</summary>
         public static void OnEnterFarmHouse(Farmer player)
         {
             FishDisplayData displayData = GetDisplayData(player, create: false);
             int clearedCount = displayData?.ActiveGiantFish.Count ?? 0;
-            displayData?.ClearActiveGiantFish();
+            displayData?.ResetSessionEffects();
             ClearDialogueSnapshots(player);
+
+            // BATCH-074：联机时广播清空事件，让其他客户端同步移除该玩家的超大鱼展示事实。
+            if (player != null)
+                BroadcastGiantFishClear(player.UniqueMultiplayerID);
 
             foreach (var key in _lastLoggedNearbyCheck.Keys.Where(key => key.playerId == player?.UniqueMultiplayerID).ToList())
                 _lastLoggedNearbyCheck.Remove(key);
@@ -226,24 +257,25 @@ namespace FishingExpanded.Services
             }
         }
 
-        /// <summary>每日重置</summary>
+        /// <summary>每日重置。BATCH-074：与进 FarmHouse 一致，展示事实和赞美记录全部归零。</summary>
         public static void OnDayStarted()
         {
+            int displayCount = 0;
             int bubbleCount = 0;
             int dialogueCount = 0;
             foreach (FishDisplayData displayData in _displayDataByPlayer.Values)
             {
+                displayCount += displayData.ActiveGiantFish.Count;
                 bubbleCount += displayData.NPCBubbleTriggered.Count;
                 dialogueCount += displayData.NPCDialogueTriggered.Count;
-                // 设计要求：巨型鱼只在进入 FarmHouse 后永久清除；每日只重置 NPC 当日触发次数。
-                displayData.ResetDailyTriggers();
+                displayData.ResetSessionEffects();
             }
             _originalDialogues.Clear();
             _lastLoggedNearbyCheck.Clear();
 
             FishingLog.Log(
                     $"[GiantFishManager] 每日重置 | 玩家数: {_displayDataByPlayer.Count} | " +
-                $"清空冒泡记录: {bubbleCount}个NPC | 对话记录: {dialogueCount}个NPC",
+                $"清空超大鱼展示: {displayCount}种 | 冒泡记录: {bubbleCount}个NPC | 对话记录: {dialogueCount}个NPC",
                 StardewModdingAPI.LogLevel.Info);
         }
 
@@ -253,6 +285,133 @@ namespace FishingExpanded.Services
             _displayDataByPlayer.Clear();
             _lastLoggedNearbyCheck.Clear();
             _originalDialogues.Clear();
+        }
+
+        // ---- BATCH-074：联机同步（分屏/远程）----
+
+        private static void BroadcastGiantFishRecord(long playerId, string fishId, int level, int fishSize)
+        {
+            if (!Context.IsMultiplayer || ModEntry.ModHelper == null)
+                return;
+
+            try
+            {
+                ModEntry.ModHelper.Multiplayer.SendMessage(
+                    new GiantFishRecordMessage
+                    {
+                        PlayerId = playerId,
+                        FishId = fishId,
+                        Level = level,
+                        FishSize = fishSize
+                    },
+                    "GiantFishRecord");
+            }
+            catch (Exception ex)
+            {
+                FishingLog.LogRateLimited("GiantFishManager.BroadcastGiantFishRecord",
+                    $"[GiantFishManager] 广播超大鱼记录失败: {ex}", StardewModdingAPI.LogLevel.Warn);
+            }
+        }
+
+        private static void BroadcastGiantFishClear(long playerId)
+        {
+            if (!Context.IsMultiplayer || ModEntry.ModHelper == null)
+                return;
+
+            try
+            {
+                ModEntry.ModHelper.Multiplayer.SendMessage(
+                    new GiantFishClearMessage { PlayerId = playerId },
+                    "GiantFishClear");
+            }
+            catch (Exception ex)
+            {
+                FishingLog.LogRateLimited("GiantFishManager.BroadcastGiantFishClear",
+                    $"[GiantFishManager] 广播清空失败: {ex}", StardewModdingAPI.LogLevel.Warn);
+            }
+        }
+
+        private static void BroadcastNPCBubble(Farmer player, NPC npc, string fishId, int fishSize, string message)
+        {
+            if (!Context.IsMultiplayer || ModEntry.ModHelper == null || player == null || npc == null)
+                return;
+
+            try
+            {
+                string locationName = npc.currentLocation?.NameOrUniqueName ?? Game1.currentLocation?.NameOrUniqueName ?? "";
+                ModEntry.ModHelper.Multiplayer.SendMessage(
+                    new NPCFishBubbleMessage
+                    {
+                        PlayerId = player.UniqueMultiplayerID,
+                        LocationName = locationName,
+                        NPCName = npc.Name,
+                        FishId = fishId,
+                        FishSize = fishSize,
+                        Message = message
+                    },
+                    "NPCFishBubble");
+            }
+            catch (Exception ex)
+            {
+                FishingLog.LogRateLimited("GiantFishManager.BroadcastNPCBubble",
+                    $"[GiantFishManager] 广播NPC冒泡失败: {ex}", StardewModdingAPI.LogLevel.Warn);
+            }
+        }
+
+        /// <summary>接收远程超大鱼展示事实（只写入展示字典，不触发本地 NPC 检查）。</summary>
+        public static void ApplyRemoteGiantFishRecord(long playerId, string fishId, int level, int fishSize)
+        {
+            if (playerId <= 0 || string.IsNullOrEmpty(fishId))
+                return;
+
+            string normalizedFishId = SpecialFishHelper.NormalizeItemId(fishId);
+            FishDisplayData displayData = GetDisplayData(playerId, create: true);
+            if (displayData == null)
+                return;
+
+            displayData.ActiveGiantFish[normalizedFishId] = (level, fishSize);
+            FishingLog.Log(
+                $"[GiantFishManager] 接收远程超大鱼记录 | 玩家: {playerId} | 鱼ID: {normalizedFishId} | " +
+                $"难度等级: {level} | fishSize: {fishSize}",
+                StardewModdingAPI.LogLevel.Info);
+        }
+
+        /// <summary>接收远程清空事件（进 FarmHouse / 换日），同步移除该玩家的展示与赞美记录。</summary>
+        public static void ApplyRemoteGiantFishClear(long playerId)
+        {
+            if (playerId <= 0)
+                return;
+
+            FishDisplayData displayData = GetDisplayData(playerId, create: false);
+            if (displayData == null)
+                return;
+
+            displayData.ResetSessionEffects();
+            FishingLog.Log(
+                $"[GiantFishManager] 接收远程清空 | 玩家: {playerId}",
+                StardewModdingAPI.LogLevel.Info);
+        }
+
+        /// <summary>接收远程 NPC 冒泡文案，在本地对应 NPC 上显示（展示同步，不占用本地触发额度）。</summary>
+        public static void ApplyRemoteNPCBubble(string locationName, string npcName, string message)
+        {
+            if (string.IsNullOrEmpty(npcName) || string.IsNullOrEmpty(message))
+                return;
+
+            GameLocation location = string.IsNullOrEmpty(locationName)
+                ? Game1.currentLocation
+                : Game1.getLocationFromName(locationName) ?? Game1.currentLocation;
+            if (location == null)
+                return;
+
+            NPC npc = location.characters.FirstOrDefault(n => n.Name == npcName);
+            if (npc == null)
+                return;
+
+            npc.showTextAboveHead(message);
+            FishingLog.Log(
+                $"[GiantFishManager] 接收远程NPC冒泡 | NPC: {npcName} | 地点: {locationName}",
+                StardewModdingAPI.LogLevel.Info);
         }
 
         /// <summary>获取鱼的视觉缩放倍数</summary>

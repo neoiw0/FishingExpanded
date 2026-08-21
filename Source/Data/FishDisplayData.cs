@@ -14,17 +14,14 @@ namespace FishingExpanded.Data
         /// <summary>每个NPC今天已触发对话的鱼种类</summary>
         public Dictionary<string, HashSet<string>> NPCDialogueTriggered { get; set; } = new Dictionary<string, HashSet<string>>();
 
-        /// <summary>重置每日触发记录（凌晨调用）</summary>
-        public void ResetDailyTriggers()
-        {
-            NPCBubbleTriggered.Clear();
-            NPCDialogueTriggered.Clear();
-        }
-
-        /// <summary>清空激活的超大鱼（进入FarmHouse时调用）</summary>
-        public void ClearActiveGiantFish()
+        /// <summary>BATCH-074：整段超大鱼会话重置——展示事实、NPC 冒泡与对话触发记录全部归零。
+        /// 进入 FarmHouse 或换日时调用，等价于“只消除进入该会话前的超大鱼效果”。
+        /// 替代旧 `ResetDailyTriggers`（只清赞美）与 `ClearActiveGiantFish`（只清展示）两条路径。</summary>
+        public void ResetSessionEffects()
         {
             ActiveGiantFish.Clear();
+            NPCBubbleTriggered.Clear();
+            NPCDialogueTriggered.Clear();
         }
     }
 }

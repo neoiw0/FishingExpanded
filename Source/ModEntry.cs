@@ -23,6 +23,9 @@ namespace FishingExpanded
         // BATCH-039: 测试命令 fish_persisttest 强制下一次钓鱼小游戏按指定秒数发放持久战奖励（薄控制，构造边界消费）
         private static int? _forcePerseveranceSeconds;
 
+        // BATCH-072: 测试命令 fish_next 强制下一次钓鱼小游戏为指定鱼（薄控制；按玩家隔离；构造边界消费；不写存档）
+        private static readonly Dictionary<long, string> _forcedNextFishByPlayer = new Dictionary<long, string>();
+
         /// <summary>SMAPI Helper</summary>
         public static IModHelper ModHelper => Instance.Helper;
 
@@ -67,6 +70,7 @@ namespace FishingExpanded
                 helper.Events.GameLoop.GameLaunched += OnGameLaunched;
                 helper.Events.GameLoop.UpdateTicked += OnUpdateTicked;
                 helper.Events.Player.Warped += OnWarped;
+                helper.Events.Multiplayer.ModMessageReceived += OnModMessageReceived;
 
                 // 注册控制台命令
                 RegisterConsoleCommands();
@@ -105,6 +109,7 @@ namespace FishingExpanded
             Patches.FishingRodPatches.ClearPending();
             Patches.CrabPotPatches.ClearPending(); // BATCH-065: 返回标题清空蟹笼待结算
             GiantFishManager.ResetForSave();
+            ClearForceNextFish(); // BATCH-072: 强制鱼种为会话态，返回标题清除，避免跨存档泄漏
             FishingLog.Log("已清除 FishingExpanded 当前玩家缓存", LogLevel.Debug);
         }
 
@@ -279,7 +284,7 @@ namespace FishingExpanded
                 return;
 
             // HUDMessage 无公开颜色字段（原生以 Game1.textColor 绘制），警告/成功靠文案本身区分。
-            Game1.addHUDMessage(new HUDMessage(Helper.Translation.Get(translationKey)));
+            Game1.addHUDMessage(new WrappingHUDMessage(Helper.Translation.Get(translationKey), Math.Max(1f, Game1.uiViewport.Width / 3f)));
         }
 
         /// <summary>BATCH-045: 解析可选玩家序号（1=主机，2=第一个农场客/副机，以此类推；顺序=Game1.getAllFarmers()，含离线农场客）。
@@ -315,29 +320,68 @@ namespace FishingExpanded
             }
         }
 
+        /// <summary>BATCH-074：接收联机同步消息（超大鱼展示事实 / 清空 / NPC 冒泡）。
+        /// 只处理本 Mod 消息；私有 HUD 提示不进入此通道。</summary>
+        private void OnModMessageReceived(object sender, ModMessageReceivedEventArgs e)
+        {
+            try
+            {
+                if (e.FromModID != ModManifest.UniqueID)
+                    return;
+
+                switch (e.Type)
+                {
+                    case "GiantFishRecord":
+                    {
+                        var record = e.ReadAs<Services.GiantFishRecordMessage>();
+                        Services.GiantFishManager.ApplyRemoteGiantFishRecord(
+                            record.PlayerId, record.FishId, record.Level, record.FishSize);
+                        break;
+                    }
+                    case "GiantFishClear":
+                    {
+                        var clear = e.ReadAs<Services.GiantFishClearMessage>();
+                        Services.GiantFishManager.ApplyRemoteGiantFishClear(clear.PlayerId);
+                        break;
+                    }
+                    case "NPCFishBubble":
+                    {
+                        var bubble = e.ReadAs<Services.NPCFishBubbleMessage>();
+                        Services.GiantFishManager.ApplyRemoteNPCBubble(
+                            bubble.LocationName, bubble.NPCName, bubble.Message);
+                        break;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                FishingLog.Log($"[ModEntry] 接收多人消息失败 | type: {e.Type} | {ex}", LogLevel.Warn);
+            }
+        }
+
         #region 控制台命令
 
         /// <summary>注册控制台命令</summary>
         private void RegisterConsoleCommands()
         {
             Helper.ConsoleCommands.Add("fish_setlevel",
-                "设置某鱼的难度等级 | 用法: fish_setlevel [玩家序号] <鱼ID> <等级>（可选序号: 1=主机, 2=副机…）",
+                "设置某鱼的难度等级 | 用法: fish_setlevel [玩家序号] <鱼ID> <等级>(可选序号: 1=主机, 2=副机…)",
                 OnCommandSetLevel);
 
             Helper.ConsoleCommands.Add("fish_addsuccess",
-                "增加成功次数 | 用法: fish_addsuccess [玩家序号] <鱼ID> <次数>（可选序号: 1=主机, 2=副机…）",
+                "增加成功次数 | 用法: fish_addsuccess [玩家序号] <鱼ID> <次数>(可选序号: 1=主机, 2=副机…)",
                 OnCommandAddSuccess);
 
             Helper.ConsoleCommands.Add("fish_addfail",
-                "增加失败次数 | 用法: fish_addfail [玩家序号] <鱼ID> <次数>（可选序号: 1=主机, 2=副机…）",
+                "增加失败次数 | 用法: fish_addfail [玩家序号] <鱼ID> <次数>(可选序号: 1=主机, 2=副机…)",
                 OnCommandAddFail);
 
             Helper.ConsoleCommands.Add("fish_info",
-                "查看鱼的详细信息 | 用法: fish_info [玩家序号] <鱼ID>（可选序号: 1=主机, 2=副机…）",
+                "查看鱼的详细信息 | 用法: fish_info [玩家序号] <鱼ID>(可选序号: 1=主机, 2=副机…)",
                 OnCommandInfo);
 
             Helper.ConsoleCommands.Add("fish_list",
-                "列出所有已记录的鱼 | 用法: fish_list [玩家序号]（1=主机, 2=副机…）",
+                "列出所有已记录的鱼 | 用法: fish_list [玩家序号](1=主机, 2=副机…)",
                 OnCommandList);
 
             Helper.ConsoleCommands.Add("fish_clear",
@@ -345,47 +389,51 @@ namespace FishingExpanded
                 OnCommandClear);
 
             Helper.ConsoleCommands.Add("fish_addstar",
-                "添加收藏皇冠（测试）| 用法: fish_addstar [玩家序号] <鱼ID>",
+                "添加收藏皇冠(测试)| 用法: fish_addstar [玩家序号] <鱼ID>",
                 OnCommandAddStar);
 
             Helper.ConsoleCommands.Add("fish_giant",
-                "模拟巨型鱼（触发NPC反应）| 用法: fish_giant [玩家序号] <鱼ID> <倍数>",
+                "模拟巨型鱼(触发NPC反应)| 用法: fish_giant [玩家序号] <鱼ID> <倍数>",
                 OnCommandGiant);
 
             Helper.ConsoleCommands.Add("fish_bonus",
-                "查看收藏皇冠与鱼竿熟练度 | 用法: fish_bonus [玩家序号]（1=主机, 2=副机…）",
+                "查看收藏皇冠与鱼竿熟练度 | 用法: fish_bonus [玩家序号](1=主机, 2=副机…)",
                 OnCommandBonus);
 
                         Helper.ConsoleCommands.Add("fish_assist",
-                "强制下一次钓鱼小游戏触发助战（测试）| 用法: fish_assist",
+                "强制下一次钓鱼小游戏触发助战(测试)| 用法: fish_assist",
                 OnCommandAssist);
 
             Helper.ConsoleCommands.Add("fish_selftest",
-                "BATCH-035 自动自测（概率/可计数/排位/分布/i18n/强制标志）| 用法: fish_selftest",
+                "BATCH-035 自动自测(概率/可计数/排位/分布/i18n/强制标志)| 用法: fish_selftest",
                 OnCommandSelfTest);
 
             Helper.ConsoleCommands.Add("fish_assiststats",
-                "查看/清空助战观测统计（会话内内存，上限500）| 用法: fish_assiststats [clear]",
+                "查看/清空助战观测统计(会话内内存，上限500)| 用法: fish_assiststats [clear]",
                 OnCommandAssistStats);
 
             Helper.ConsoleCommands.Add("fish_addstars",
-                "批量添加收藏皇冠（完整可计数 61 鱼池，含原版传奇，提升鱼竿熟练度）| 用法: fish_addstars [玩家序号] <数量>（1=主机, 2=副机…）",
+                "批量添加收藏皇冠(完整可计数 61 鱼池，含原版传奇，提升鱼竿熟练度)| 用法: fish_addstars [玩家序号] <数量>(1=主机, 2=副机…)",
                 OnCommandAddStars);
 
             Helper.ConsoleCommands.Add("fish_challengecrown",
-                "设置挑战鱼饵流动金色皇冠标记（测试）| 用法: fish_challengecrown [玩家序号] <鱼ID> [0|1]",
+                "设置挑战鱼饵流动金色皇冠标记(测试)| 用法: fish_challengecrown [玩家序号] <鱼ID> [0|1]",
                 OnCommandChallengeCrown);
 
             Helper.ConsoleCommands.Add("fish_persisttest",
-                "强制下一次钓鱼小游戏失败时按指定秒数发放持久战奖励（测试）| 用法: fish_persisttest <30|60>",
+                "强制下一次钓鱼小游戏失败时按指定秒数发放持久战奖励(测试)| 用法: fish_persisttest <30|60>",
                 OnCommandPerseveranceTest);
 
+            Helper.ConsoleCommands.Add("fish_next",
+                "强制下一次钓鱼小游戏为指定鱼(测试)| 用法: fish_next [玩家序号] <鱼ID>(1=主机, 2=副机…)",
+                OnCommandForceNextFish);
+
             Helper.ConsoleCommands.Add("fish_giveitem",
-                "给当前/指定玩家物品（测试）| 用法: fish_giveitem [玩家序号] <物品ID> [品质0|1|2|4] [数量]（例: fish_giveitem 265 4 10 = 10 个铱星海泡布丁）",
+                "给当前/指定玩家物品(测试)| 用法: fish_giveitem [玩家序号] <物品ID> [品质0|1|2|4] [数量](例: fish_giveitem 265 4 10 = 10 个铱星海泡布丁)",
                 OnCommandGiveItem);
 
             Helper.ConsoleCommands.Add("fish_dumpstars",
-                "导出星星候选贴图区域 PNG 到 Mods\\FishingExpanded\\dump（识图选素材用）| 用法: fish_dumpstars",
+                "导出星星候选贴图区域 PNG 到 Mods\\FishingExpanded\\dump(识图选素材用)| 用法: fish_dumpstars",
                 OnCommandDumpStars);
 
             FishingLog.Log("控制台命令注册完成 (输入 help 查看所有命令)", LogLevel.Debug);
@@ -492,7 +540,7 @@ namespace FishingExpanded
             FishingLog.Log($"鱼ID: {fishId} | 玩家: {player.Name}", LogLevel.Info);
             FishingLog.Log($"成功次数: {stats.SuccessCount}", LogLevel.Info);
             FishingLog.Log($"失败次数: {stats.FailCount}", LogLevel.Info);
-            FishingLog.Log($"难度等级: {level} ({GetRankName(level)})", LogLevel.Info);
+            FishingLog.Log($"难度等级: {level} ({GetDisplayRankName(level)})", LogLevel.Info);
             FishingLog.Log($"难度倍数: {Utils.DifficultyCalculator.GetDifficultyMultiplier(level):F2}x", LogLevel.Info);
             FishingLog.Log($"数量倍数: {Utils.DifficultyCalculator.GetQuantityMultiplier(level)}x", LogLevel.Info);
             FishingLog.Log($"品质门槛: +{Utils.DifficultyCalculator.GetQualityTier(level)} (0=普通/1=银/2=金/4=铱, BATCH-060)", LogLevel.Info);
@@ -512,7 +560,7 @@ namespace FishingExpanded
                 return;
             }
 
-            FishingLog.Log($"===== {player.Name} 已记录的鱼种（共 {allStats.Count} 种）=====", LogLevel.Info);
+            FishingLog.Log($"===== {player.Name} 已记录的鱼种(共 {allStats.Count} 种)=====", LogLevel.Info);
             foreach (var kvp in allStats)
             {
                 string fishId = kvp.Key;
@@ -521,7 +569,7 @@ namespace FishingExpanded
                 bool hasStar = DifficultyManager.HasCollectionStar(fishId, player);
                 string starMark = hasStar ? " ★" : "";
 
-                FishingLog.Log($"  {fishId}: 等级={level} ({GetRankName(level)}), " +
+                FishingLog.Log($"  {fishId}: 等级={level} ({GetDisplayRankName(level)}), " +
                            $"成功={stats.SuccessCount}, 失败={stats.FailCount}{starMark}",
                            LogLevel.Info);
             }
@@ -564,7 +612,7 @@ namespace FishingExpanded
             Farmer player = TryParseTargetPlayer(args, ref offset) ?? Game1.player;
             if (args.Length < offset + 2)
             {
-                FishingLog.Log("用法: fish_giant [玩家序号] <鱼ID> <难度等级>（BATCH-060：巨型鱼按难度等级 ≥8 触发）", LogLevel.Info);
+                FishingLog.Log("用法: fish_giant [玩家序号] <鱼ID> <难度等级>(BATCH-060：巨型鱼按难度等级 ≥8 触发)", LogLevel.Info);
                 FishingLog.Log("例如: fish_giant 128 20 或 fish_giant 2 128 20", LogLevel.Info);
                 return;
             }
@@ -599,11 +647,14 @@ namespace FishingExpanded
 
             FishingLog.Log($"✓ 已为 {player.Name} 添加 {added} 颗收藏皇冠 (目标 {count})", LogLevel.Info);
             FishingLog.Log($"可计数皇冠: {countable}/{DifficultyManager.CountableCrownTarget} | 鱼竿熟练度: {alpha:P0}", LogLevel.Info);
-            double assistChance = Utils.DifficultyCalculator.GetAssistChance(countable, DifficultyManager.CountableCrownTarget);
-            FishingLog.Log($"助战概率: {assistChance:P1}（满皇冠 10% 线性；Mod 鱼皇冠不计入）", LogLevel.Info);
+            double assistChance = Utils.DifficultyCalculator.GetAssistChance(
+                countable, DifficultyManager.CountableCrownTarget,
+                DifficultyManager.GetCountableFlowCrownCount(player),
+                DifficultyManager.GetCountableLevel100FlowCrownCount(player));
+            FishingLog.Log($"助战概率: {assistChance:P1}(满皇冠 10% 线性；Mod 鱼皇冠不计入；流动金冠 +0.1%/条、增大流动金冠再 +0.05%/条)", LogLevel.Info);
             if (added < count)
             {
-                FishingLog.Log("提示: 可计数 61 鱼池皇冠已用完（56 普通 + 5 原版传奇，不含 Mod 鱼）；可先 fish_clear confirm 清空后重新添加", LogLevel.Warn);
+                FishingLog.Log("提示: 可计数 61 鱼池皇冠已用完(56 普通 + 5 原版传奇，不含 Mod 鱼)；可先 fish_clear confirm 清空后重新添加", LogLevel.Warn);
             }
         }
 
@@ -619,8 +670,11 @@ namespace FishingExpanded
             FishingLog.Log($"玩家: {player.Name}", LogLevel.Info);
             FishingLog.Log($"收藏皇冠总数: {starCount}", LogLevel.Info);
             FishingLog.Log($"可计数皇冠: {countable}/{DifficultyManager.CountableCrownTarget} | 鱼竿熟练度: {alpha:P0}", LogLevel.Info);
-            double assistChance = Utils.DifficultyCalculator.GetAssistChance(countable, DifficultyManager.CountableCrownTarget);
-            FishingLog.Log($"助战概率: {assistChance:P1}（满皇冠 10% 线性；Mod 鱼皇冠不计入）", LogLevel.Info);
+            double assistChance = Utils.DifficultyCalculator.GetAssistChance(
+                countable, DifficultyManager.CountableCrownTarget,
+                DifficultyManager.GetCountableFlowCrownCount(player),
+                DifficultyManager.GetCountableLevel100FlowCrownCount(player));
+            FishingLog.Log($"助战概率: {assistChance:P1}(满皇冠 10% 线性；Mod 鱼皇冠不计入；流动金冠 +0.1%/条、增大流动金冠再 +0.05%/条)", LogLevel.Info);
             FishingLog.Log("===========================================", LogLevel.Info);
         }
 
@@ -638,6 +692,36 @@ namespace FishingExpanded
             int? seconds = _forcePerseveranceSeconds;
             _forcePerseveranceSeconds = null;
             return seconds ?? 0f;
+        }
+
+        /// <summary>BATCH-072: 设置指定玩家的下一次钓鱼小游戏强制鱼种（会话态，不写存档）。</summary>
+        public static void SetForceNextFish(Farmer player, string fishId)
+        {
+            if (player == null || string.IsNullOrWhiteSpace(fishId))
+                return;
+
+            _forcedNextFishByPlayer[player.UniqueMultiplayerID] = Utils.SpecialFishHelper.NormalizeItemId(fishId);
+        }
+
+        /// <summary>BATCH-072: 消费指定玩家的强制鱼种（BobberBar 构造边界调用；一次消费后清除；未设置返回 null）。</summary>
+        public static string ConsumeForceNextFish(Farmer player)
+        {
+            if (player == null)
+                return null;
+
+            if (_forcedNextFishByPlayer.TryGetValue(player.UniqueMultiplayerID, out string fishId))
+            {
+                _forcedNextFishByPlayer.Remove(player.UniqueMultiplayerID);
+                return fishId;
+            }
+
+            return null;
+        }
+
+        /// <summary>BATCH-072: 返回标题时清空强制鱼种标记，避免跨存档泄漏。</summary>
+        public static void ClearForceNextFish()
+        {
+            _forcedNextFishByPlayer.Clear();
         }
 
         /// <summary>BATCH-035: 强制下一次钓鱼小游戏触发助战（薄控制测试命令，不写存档）。</summary>
@@ -658,9 +742,9 @@ namespace FishingExpanded
             DifficultyManager.SetChallengeCrown(fishId, setValue, player);
             bool now = DifficultyManager.HasChallengeCrown(fishId, player);
             FishingLog.Log(
-                $"✓ 已{(setValue ? "设置" : "清除")} {fishId} 的挑战鱼饵流动金色皇冠标记（当前: {now}）| 玩家: {player.Name}",
+                $"✓ 已{(setValue ? "设置" : "清除")} {fishId} 的挑战鱼饵流动金色皇冠标记(当前: {now})| 玩家: {player.Name}",
                 LogLevel.Info);
-            FishingLog.Log("提示: 打开图鉴鱼类页查看皇冠是否为流动金色（视觉待真实游戏确认）", LogLevel.Info);
+            FishingLog.Log("提示: 打开图鉴鱼类页查看皇冠是否为流动金色(视觉待真实游戏确认)", LogLevel.Info);
         }
 
         private void OnCommandAssist(string command, string[] args)
@@ -668,7 +752,7 @@ namespace FishingExpanded
             _forceAssistNext = true;
             int countable = DifficultyManager.GetCountableCrownCount(Game1.player);
             double chance = Utils.DifficultyCalculator.GetAssistChance(countable, DifficultyManager.CountableCrownTarget);
-            FishingLog.Log("✓ 下一次钓鱼小游戏将强制触发助战（测试）", LogLevel.Info);
+            FishingLog.Log("✓ 下一次钓鱼小游戏将强制触发助战(测试)", LogLevel.Info);
             if (countable <= 0)
             {
                 FishingLog.Log("警告: 当前无可计数皇冠，助战将无法选出助战鱼；请先用 fish_addstar / fish_addstars 添加皇冠", LogLevel.Warn);
@@ -690,8 +774,52 @@ namespace FishingExpanded
             }
 
             _forcePerseveranceSeconds = seconds;
-            FishingLog.Log($"✓ 下一次钓鱼小游戏失败时将按 {seconds} 秒发放持久战奖励（30 秒=50% +3 料理；60 秒=必得海泡布丁）", LogLevel.Info);
+            FishingLog.Log($"✓ 下一次钓鱼小游戏失败时将按 {seconds} 秒发放持久战奖励(30 秒=50% +3 料理；60 秒=必得海泡布丁)", LogLevel.Info);
             FishingLog.Log("提示: 鱼王小游戏豁免奖励，强制标志会被鱼王豁免消耗", LogLevel.Info);
+        }
+
+        /// <summary>BATCH-072: 强制指定玩家的下一次钓鱼小游戏鱼种（薄控制测试命令；构造边界消费；不写存档）。</summary>
+        private void OnCommandForceNextFish(string command, string[] args)
+        {
+            int offset = 0;
+            Farmer player = TryParseTargetPlayer(args, ref offset) ?? Game1.player;
+            if (player == null || args.Length < offset + 1)
+            {
+                FishingLog.Log("用法: fish_next [玩家序号] <鱼ID>  (1=主机, 2=副机…)", LogLevel.Info);
+                FishingLog.Log("例如: fish_next 151 或 fish_next 2 151  (副机下一次小游戏固定为鱿鱼)", LogLevel.Info);
+                return;
+            }
+
+            string rawFishId = args[offset];
+            string fishId = Utils.SpecialFishHelper.NormalizeItemId(rawFishId);
+            string nativeFishId = fishId.StartsWith("(O)", StringComparison.OrdinalIgnoreCase)
+                ? fishId.Substring(3)
+                : fishId;
+
+            try
+            {
+                var fishData = StardewValley.DataLoader.Fish(Game1.content);
+                if (fishData == null || !fishData.ContainsKey(nativeFishId))
+                {
+                    FishingLog.Log($"鱼ID {rawFishId} 不在 Data/Fish 中，无法作为钓鱼小游戏目标", LogLevel.Error);
+                    return;
+                }
+
+                var metadata = StardewValley.ItemRegistry.GetDataOrErrorItem(fishId);
+                if (metadata == null || metadata.IsErrorItem)
+                {
+                    FishingLog.Log($"鱼ID {rawFishId} 不是有效物品", LogLevel.Error);
+                    return;
+                }
+
+                string displayName = StardewValley.ItemRegistry.Create(fishId)?.DisplayName ?? fishId;
+                SetForceNextFish(player, fishId);
+                FishingLog.Log($"✓ 已为 {player.Name} 设置下一次钓鱼小游戏为 {displayName} ({fishId}) | 一次消费", LogLevel.Info);
+            }
+            catch (Exception ex)
+            {
+                FishingLog.Log($"fish_next 失败: {ex.Message}", LogLevel.Error);
+            }
         }
 
         /// <summary>BATCH-062: 给当前/指定玩家发物品（测试/调试用；addItemByMenuIfNecessary 走原生背包或溢出菜单）。</summary>
@@ -735,7 +863,7 @@ namespace FishingExpanded
             }
             catch (Exception ex)
             {
-                FishingLog.Log($"fish_giveitem 失败: {ex.Message}（物品 ID 无效？）", LogLevel.Error);
+                FishingLog.Log($"fish_giveitem 失败: {ex.Message}(物品 ID 无效？)", LogLevel.Error);
             }
         }
 
@@ -769,7 +897,7 @@ namespace FishingExpanded
                 // 5. 当前运行时大金星区域 (280,188,94,105) ×16（BATCH-064 当前实现，供对照）
                 DumpRegion("bigstar-280-188", Game1.mouseCursors, new Rectangle(280, 188, 94, 105), 16, dumpDir);
 
-                FishingLog.Log($"✓ 贴图导出完成 → {dumpDir}（共 5 个 PNG + 贴图尺寸日志）", LogLevel.Info);
+                FishingLog.Log($"✓ 贴图导出完成 → {dumpDir}(共 5 个 PNG + 贴图尺寸日志)", LogLevel.Info);
             }
             catch (Exception ex)
             {
@@ -895,9 +1023,14 @@ namespace FishingExpanded
             return crc ^ 0xFFFFFFFF;
         }
 
-        private string GetRankName(int level)
+        /// <summary>BATCH-073：集中取得显示用称号。设置了 CustomFishingTitle 时用它替代 i18n 称号；
+        /// 空/纯空白时回退到原 i18n 称号。内部 rankKey/等级逻辑不改变。</summary>
+        public static string GetDisplayRankName(int level)
         {
-            return ModHelper.Translation.Get(Utils.DifficultyCalculator.GetRankKey(level));
+            string custom = Config?.CustomFishingTitle;
+            return string.IsNullOrWhiteSpace(custom)
+                ? ModHelper.Translation.Get(Utils.DifficultyCalculator.GetRankKey(level))
+                : custom.Trim();
         }
 
         /// <summary>BATCH-035 自动化验收：确定性自测（只读生产函数 + 本地种子随机，不改存档、不写玩家状态）。</summary>
@@ -921,12 +1054,22 @@ namespace FishingExpanded
             Report("概率: 20/61 = 3.28%", Math.Abs(cMid - 0.10 * 20.0 / 61.0) < 1e-9, $"实际 {cMid:P2}");
             Report("概率: 超过 61 钳制 = 10%", Math.Abs(cOver - 0.10) < 1e-9, $"实际 {cOver:P1}");
 
+            // 1b. BATCH-073 金冠助战加成（纯函数）
+            double bNone = Utils.DifficultyCalculator.GetAssistChance(61, DifficultyManager.CountableCrownTarget, 0, 0);
+            double bFlow = Utils.DifficultyCalculator.GetAssistChance(61, DifficultyManager.CountableCrownTarget, 1, 0);
+            double bFlowEnlarged = Utils.DifficultyCalculator.GetAssistChance(61, DifficultyManager.CountableCrownTarget, 1, 1);
+            double bNoCrowns = Utils.DifficultyCalculator.GetAssistChance(0, DifficultyManager.CountableCrownTarget, 5, 3);
+            Report("助战加成: 61皇冠无金冠=10%", Math.Abs(bNone - 0.10) < 1e-9, $"实际 {bNone:P2}");
+            Report("助战加成: +1流动金冠=10.1%", Math.Abs(bFlow - 0.101) < 1e-9, $"实际 {bFlow:P2}");
+            Report("助战加成: +1流动金冠+1增大=10.15%", Math.Abs(bFlowEnlarged - 0.1015) < 1e-9, $"实际 {bFlowEnlarged:P3}");
+            Report("助战加成: 无皇冠时有金冠加成=0.65%", Math.Abs(bNoCrowns - (0.005 + 0.0015)) < 1e-9, $"实际 {bNoCrowns:P3}");
+
             // 2. 可计数皇冠（只读）
             int starCount = DifficultyManager.GetCollectionStarCount(Game1.player);
             int countable = DifficultyManager.GetCountableCrownCount(Game1.player);
             var starred = DifficultyManager.GetCountableStarredFish(Game1.player);
             Report("可计数: 计数=列表数 且 ≤61", countable == starred.Count && countable <= DifficultyManager.CountableCrownTarget,
-                $"{countable}/{DifficultyManager.CountableCrownTarget}（星标总数 {starCount}）");
+                $"{countable}/{DifficultyManager.CountableCrownTarget}(星标总数 {starCount})");
             bool allCountable = true;
             foreach (string id in starred)
             {
@@ -954,7 +1097,7 @@ namespace FishingExpanded
             }
             else
             {
-                FishingLog.Log("[SKIP] 排位检查: 当前无皇冠鱼（fish_addstar / fish_addstars 添加后重跑）", LogLevel.Warn);
+                FishingLog.Log("[SKIP] 排位检查: 当前无皇冠鱼(fish_addstar / fish_addstars 添加后重跑)", LogLevel.Warn);
             }
 
             // 4. 等级分布统计（本地种子随机，结束后恢复全局随机）
@@ -1034,6 +1177,13 @@ namespace FishingExpanded
             float consumedPersist = ConsumeForcePerseveranceSeconds();
             float clearedPersist = ConsumeForcePerseveranceSeconds();
             Report("持久战标志: 空闲0→置位30→消费30→清除0", idlePersist == 0f && consumedPersist == 30f && clearedPersist == 0f);
+
+            // 10. BATCH-072: 强制鱼种标志生命周期（薄控制，不写存档；按当前玩家隔离）
+            string idleNext = ConsumeForceNextFish(Game1.player);
+            SetForceNextFish(Game1.player, "(O)151");
+            string consumedNext = ConsumeForceNextFish(Game1.player);
+            string clearedNext = ConsumeForceNextFish(Game1.player);
+            Report("强制鱼种标志: 空闲null→置位(O)151→消费→清除null", idleNext == null && consumedNext == "(O)151" && clearedNext == null);
 
             // 10. BATCH-040: 日志开关与限频缓存（只读自测，不写日志缓存）
             bool cfgLogging = Config?.EnableLogging ?? true;
@@ -1173,7 +1323,7 @@ namespace FishingExpanded
             }
 
             var obs = Patches.BobberBarPatches.GetAssistObservations();
-            FishingLog.Log("======== 助战观测统计（会话内内存，上限 500）========", LogLevel.Info);
+            FishingLog.Log("======== 助战观测统计(会话内内存，上限 500)========", LogLevel.Info);
             FishingLog.Log($"观测次数: {obs.Count}/500", LogLevel.Info);
             if (obs.Count == 0)
             {
@@ -1193,18 +1343,18 @@ namespace FishingExpanded
             }
 
             FishingLog.Log($"平均助战等级: {totalLevel / obs.Count:F2}", LogLevel.Info);
-            FishingLog.Log($"低排位组 (<0.33): n={lowN} 平均 {(lowN > 0 ? lowSum / lowN : 0):F2}（期望≈13.5）| 40级 {low40} 次, 0级 {low0} 次", LogLevel.Info);
-            FishingLog.Log($"中排位组 (0.33~0.67): n={midN} 平均 {(midN > 0 ? midSum / midN : 0):F2}（期望≈20）", LogLevel.Info);
-            FishingLog.Log($"高排位组 (>0.67): n={highN} 平均 {(highN > 0 ? highSum / highN : 0):F2}（期望≈26.5）| 40级 {high40} 次, 0级 {high0} 次", LogLevel.Info);
+            FishingLog.Log($"低排位组 (<0.33): n={lowN} 平均 {(lowN > 0 ? lowSum / lowN : 0):F2}(期望≈13.5)| 40级 {low40} 次, 0级 {low0} 次", LogLevel.Info);
+            FishingLog.Log($"中排位组 (0.33~0.67): n={midN} 平均 {(midN > 0 ? midSum / midN : 0):F2}(期望≈20)", LogLevel.Info);
+            FishingLog.Log($"高排位组 (>0.67): n={highN} 平均 {(highN > 0 ? highSum / highN : 0):F2}(期望≈26.5)| 40级 {high40} 次, 0级 {high0} 次", LogLevel.Info);
             if (lowN > 0 && highN > 0)
             {
                 double p40Low = low40 / (double)lowN, p40High = high40 / (double)highN;
                 double p0Low = low0 / (double)lowN, p0High = high0 / (double)highN;
-                FishingLog.Log($"40级比例: 低组 {p40Low:P2} vs 高组 {p40High:P2}（期望比值≈30）", LogLevel.Info);
-                FishingLog.Log($"0级比例: 低组 {p0Low:P2} vs 高组 {p0High:P2}（期望比值≈1/30）", LogLevel.Info);
-                FishingLog.Log($"低组+高组平均等级和: {(lowSum / lowN) + (highSum / highN):F2}（期望≈40）", LogLevel.Info);
+                FishingLog.Log($"40级比例: 低组 {p40Low:P2} vs 高组 {p40High:P2}(期望比值≈30)", LogLevel.Info);
+                FishingLog.Log($"0级比例: 低组 {p0Low:P2} vs 高组 {p0High:P2}(期望比值≈1/30)", LogLevel.Info);
+                FishingLog.Log($"低组+高组平均等级和: {(lowSum / lowN) + (highSum / highN):F2}(期望≈40)", LogLevel.Info);
             }
-            FishingLog.Log("提示: 观测为会话内内存（不写存档），fish_assiststats clear 可清空；样本越多越接近期望。", LogLevel.Info);
+            FishingLog.Log("提示: 观测为会话内内存(不写存档)，fish_assiststats clear 可清空；样本越多越接近期望。", LogLevel.Info);
         }
 
         #endregion

@@ -43,8 +43,7 @@ namespace FishingExpanded.Patches
                     int level = DifficultyManager.GetDifficultyLevel(fishId, Game1.player);
                     if (level > 0)
                     {
-                        string rankKey = DifficultyCalculator.GetRankKey(level);
-                        string rankName = ModEntry.ModHelper.Translation.Get(rankKey);
+                        string rankName = ModEntry.GetDisplayRankName(level);
                         additions.Add(ModEntry.ModHelper.Translation.Get(
                             "collections.challengeRank", new { rankName, level }));
                     }
@@ -153,10 +152,14 @@ namespace FishingExpanded.Patches
                 if (flow)
                 {
                     // 流动金色：金/白呼吸 + 1±0.05 缩放脉冲；BATCH-048 100 级流动皇冠基础尺寸 ×1.2。
+                    // BATCH-074：困难模式（随机无背板）下 100 级流动皇冠基础尺寸 ×1.3，仅图鉴绘制，助战权重不变。
                     double pulseTime = Game1.currentGameTime.TotalGameTime.TotalMilliseconds / 300.0;
                     float pulse = (float)Math.Sin(pulseTime);
                     Color flowColor = Color.Lerp(new Color(218, 165, 32), Color.White, (pulse + 1f) / 2f * 0.4f);
-                    float flowScale = 24f * (level100 ? 1.2f : 1f) * (1f + 0.05f * pulse);
+                    float level100Factor = level100
+                        ? (ModEntry.Config.EnableRandomFishBehavior ? 1.3f : 1.2f)
+                        : 1f;
+                    float flowScale = 24f * level100Factor * (1f + 0.05f * pulse);
                     Vector2 center = new Vector2(__instance.bounds.X + 3 + 12, __instance.bounds.Y + 3 + 12);
                     b.Draw(
                         crownTexture,

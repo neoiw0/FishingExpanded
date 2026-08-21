@@ -1,0 +1,10 @@
+Fishing Expanded 0.5.10 — Release Checksums / 发布校验和
+==========================================================
+Release candidate rebuilt on 2026-08-18 (includes BATCH-069/070/071/072/073/074).
+发布候选构建于 2026-08-18（包含 BATCH-069/070/071/072/073/074）。
+
+SHA-256 (FishingExpanded-0.5.10.zip):
+8D175B2405A49558C42762F558AAD4CB47697A4242E31C504D5F071FF04A8108
+
+SHA-256 (FishingExpanded.dll):
+9F2E9BDB5D7D078B034A79841FA6052024F41904E485E1B417FC35BE1839088B

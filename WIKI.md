@@ -8,7 +8,7 @@
 
 ## 1. 概览 / Overview
 
-- **Mod 名称**：Fishing Expanded（UniqueID：`YourName.FishingExpanded`，见 `manifest.json`）。
+- **Mod 名称**：Fishing Expanded（UniqueID：`neoiw.FishingExpanded`，见 `manifest.json`）。
 - **依赖**：SMAPI 4.0.0+，Stardew Valley 1.6+；可选 Generic Mod Config Menu（仅提供日志开关，未安装不影响）。
 - **设置与日志**：首次运行自动生成 `config.json`（`EnableLogging` 默认 `true`）；安装 GMCM 后可在游戏内菜单关闭日志；关闭后 Mod 自身日志 0 条（BATCH-040）。GMCM 菜单另提供“重置挑战数据”章节（警告说明 + 开关待命，关闭菜单后弹确认框二次确认，回到刚安装状态；BATCH-042）。
 - **核心内容**：每种鱼独立的“难度等级”、动态难度/数量/经验/品质/尺寸调整、蓄力槽保护、高难度运动强化与鱼跳、图鉴皇冠与鱼竿熟练度、挑战鱼饵、力竭机制、持久战奖励、皇冠助战、双通道浮动提示、超大鱼展示、NPC 反应、星之果茶掉落。
@@ -203,12 +203,12 @@ English: All corner messages are FIFO-queued per player (1 visible, cap 5). Succ
 ### 6.2 效果
 
 - **视觉缩放**：手持鱼、从水里飞向玩家的飞行动画、举起结算的真鱼都会放大（底边/中心锚点保持原生位置）；小游戏内的鱼标与结算面板示意图保持原生大小。
-- **NPC 冒泡**：玩家 5 格（320 像素）内 NPC 头顶显示随机赞美文案（100 条，含鱼名 + 具体尺寸，单位统一为厘米：`fishSize×2.54` 取整）；每个 NPC 每天每种鱼最多 1 次。动物 NPC（宠物 Pet 按 petType=狗/猫、马 Horse）先叫一声再把赞美放括号里，如“汪汪！！！（这条狗鱼竟然有388cm简直是奇迹）”；每种动物 5 套叫声随机（BATCH-058）。
-- **主动对话替换**：与 NPC 对话首次替换为赞美（同文案池），第二次恢复原对话；每 NPC 每天每种鱼最多 1 次。
-- **每日重置**：凌晨清空冒泡/对话触发记录；**进入 FarmHouse 永久清除**当前手持超大鱼的放大效果（直到下次再钓到新的超大鱼）。
+- **NPC 冒泡**：玩家 5 格（320 像素）内 NPC 头顶显示随机赞美文案（100 条，含鱼名 + 具体尺寸，单位统一为厘米：`fishSize×2.54` 取整）；每个 NPC 在同一超大鱼会话内每种鱼最多 1 次（进入 FarmHouse 或换日后重置，BATCH-074）。动物 NPC（宠物 Pet 按 petType=狗/猫、马 Horse）先叫一声再把赞美放括号里，如“汪汪！！！（这条狗鱼竟然有388cm简直是奇迹）”；每种动物 5 套叫声随机（BATCH-058）。
+- **主动对话替换**：与 NPC 对话首次替换为赞美（同文案池），第二次恢复原对话；每 NPC 在同一超大鱼会话内每种鱼最多 1 次（BATCH-074）。
+- **会话重置**：进入 FarmHouse 或换日（凌晨）时，超大鱼展示与 NPC 冒泡/对话触发记录一起归零；下次钓到新的超大鱼重新计算（BATCH-074）。
 - 鱼王与垃圾/藻类等非鱼类不产生超大鱼展示（当前实现仅 Category = -4 的真鱼登记）。
 
-English: A fish shows as giant when caught with a quantity multiplier >15 (level ≥8 → ×17), is being held up, and the player hasn't entered the FarmHouse since catching it. Giant fish get visual scaling, one NPC bubble per NPC/species/day within 5 tiles (size in cm), and one dialogue replacement per NPC/species/day. Entering the FarmHouse permanently clears the current giant display.
+English: A fish shows as giant when caught with a difficulty level ≥8, is being held up, and the player hasn't entered the FarmHouse since catching it. Giant fish get visual scaling, one NPC bubble per NPC/species per giant-fish session within 5 tiles (size in cm), and one dialogue replacement per NPC/species per session. Entering the FarmHouse or starting a new day resets the giant display and praise records (BATCH-074).
 
 ---
 
@@ -362,9 +362,10 @@ English: The `EnableFestivalFishingMods` config toggle (default off) makes the t
 | `fish_assist` | 强制下一次小游戏触发助战（测试） | `fish_assist` |
 | `fish_assiststats [clear]` | 查看/清空助战观测统计（会话内，上限 500） | `fish_assiststats clear` |
 | `fish_persisttest <30\|60>` | 强制下一次小游戏按指定秒数判定持久战奖励（测试） | `fish_persisttest 60` |
+| `fish_next [玩家序号] <鱼ID>` | 强制下一次钓鱼小游戏为指定鱼（测试；支持玩家序号，BATCH-072） | `fish_next 151` / `fish_next 2 151` |
 | `fish_selftest` | 自动自测（难度/可计数皇冠/助战分布/限频日志/经验钳制与倍数曲线等只读项） | `fish_selftest` |
 
-English: Fifteen SMAPI console commands cover level/stats editing, inspection, data clearing, crown toggles, giant-fish simulation, assist testing/statistics, perseverance-reward forcing, and a read-only self-test (including the BATCH-068 experience-clamp and multiplier-curve assertions). Data/query commands accept an optional leading player index (1=host, 2=first farmhand, etc., from `Game1.getAllFarmers()`; omitted = current player), e.g. `fish_addstars 2 20` and `fish_bonus 2` (BATCH-045).
+English: Sixteen SMAPI console commands cover level/stats editing, inspection, data clearing, crown toggles, giant-fish simulation, assist testing/statistics, perseverance-reward forcing, forced-next-fish testing, and a read-only self-test (including the BATCH-068 experience-clamp and multiplier-curve assertions). Data/query commands accept an optional leading player index (1=host, 2=first farmhand, etc., from `Game1.getAllFarmers()`; omitted = current player), e.g. `fish_addstars 2 20` and `fish_bonus 2` (BATCH-045). `fish_next` also accepts the player index (BATCH-072).
 
 ---
 
@@ -375,7 +376,7 @@ English: Fifteen SMAPI console commands cover level/stats editing, inspection, d
 | 巨物展示（放大 + NPC 反应） | 难度等级 ≥8（BATCH-060）；举起并 5 格内有 NPC；钓后未进 FarmHouse |
 | 图鉴皇冠 | 成功钓起且本次调整后难度 ≥120（原版 5 传奇一次钓获直接给） |
 | 鱼竿熟练度 α | 可计数皇冠分段线性：0/5/10/20/30/61 → 0%/2%/7%/20%/35%/100% |
-| 流光溢彩皇冠 | 难度等级 ≥95 + 挑战鱼饵生效时成功（不区分是否超时）；挑战开始时 100 级鱼 ×1.2；皇冠位于详情 UI/鼠标之下 |
+| 流光溢彩皇冠 | 难度等级 ≥95 + 挑战鱼饵生效时成功（不区分是否超时）；挑战开始时 100 级鱼 ×1.2（困难模式随机无背板 ×1.3，BATCH-074）；皇冠位于详情 UI/鼠标之下 |
 | 皇冠助战 | 概率 10%×(皇冠/61)，临时 +0~40 钓鱼等级（仅绿条高度）；助战文案显示 15 秒（BATCH-060） |
 | 铱星品质起点 | 门槛式：10 级→银、25 级→金、**50 级→铱**（最终品质 = max(原品质, 门槛)，BATCH-060） |
 | 鱼跳 / 史诗失败提示 | 调整后难度 ≥150（加速度档位锚点曲线，90 级起满档） |

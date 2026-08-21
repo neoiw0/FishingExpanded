@@ -16,5 +16,9 @@ namespace FishingExpanded
         /// true=模组规则照常生效，且节日分数按数量倍数翻倍（鱿鱼节分数=原生数量×倍数，
         /// 冰雪节每次成功 +数量倍数 分）。</summary>
         public bool EnableFestivalFishingMods { get; set; } = false;
+
+        /// <summary>自定义钓鱼称号（BATCH-073，2026-08-18 用户确认）：空字符串=继续使用 i18n 称号；
+        /// 非空时替代所有玩家可见的鱼职阶称号显示。该字段只允许手动编辑 config.json，不注册到 GMCM。</summary>
+        public string CustomFishingTitle { get; set; } = string.Empty;
     }
 }

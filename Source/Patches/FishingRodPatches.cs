@@ -362,7 +362,7 @@ namespace FishingExpanded.Patches
                 {
                     FishingLog.Log(
                         $"[节日] 原生模式跳过 pending 记录 | 鱼ID: {Utils.SpecialFishHelper.NormalizeItemId(fishId)} | " +
-                        $"开关关闭（节日完全原生）",
+                        $"开关关闭(节日完全原生)",
                         LogLevel.Info);
                     return;
                 }
@@ -377,7 +377,7 @@ namespace FishingExpanded.Patches
                 if (Utils.SpecialFishHelper.IsLegendaryFish(normalizedFishId))
                 {
                     FishingLog.Log(
-                        $"[FishingRod] 传奇鱼（鱼王）豁免规则 | 鱼ID: {normalizedFishId}",
+                        $"[FishingRod] 传奇鱼(鱼王)豁免规则 | 鱼ID: {normalizedFishId}",
                         LogLevel.Info);
 
                     // BATCH-034/039: 原版 5 条传奇鱼钓到一次直接给皇冠（计入可计数皇冠/鱼竿熟练度 α；失败不经过本边界）
@@ -449,7 +449,7 @@ namespace FishingExpanded.Patches
                 };
 
                 FishingLog.Log(
-                    $"[FishingRod] 钓鱼成功（动画阶段）| 玩家: {owner.UniqueMultiplayerID} | 鱼ID: {normalizedFishId} | " +
+                    $"[FishingRod] 钓鱼成功(动画阶段)| 玩家: {owner.UniqueMultiplayerID} | 鱼ID: {normalizedFishId} | " +
                     $"难度等级: {difficultyLevel} | 数量倍数: {quantityMultiplier} | " +
                     $"脱杆次数: {missCount} | 动画显示: {numCaught}条 | 尺寸(原生→结算): {fishSize} → {recordedFishSize} | " +
                     $"挑战鱼饵: {hasChallengeBait} | 万能加成: {wildBaitBonus} | 挑战加成(5分钟): {challengeBonusActive} | 耗时: {elapsedSeconds:F0}s",

@@ -33,7 +33,7 @@ namespace FishingExpanded.Utils
             try
             {
                 string rankKey = DifficultyCalculator.GetRankKey(level);
-                string rankName = ModEntry.ModHelper.Translation.Get(rankKey);
+                string rankName = ModEntry.GetDisplayRankName(level);
                 string honorificKey = HonorificKeys.TryGetValue(rankKey, out string key)
                     ? key
                     : "hud.starChallenge.honor.weak";

@@ -71,7 +71,7 @@
 6. **挑战鱼饵掉星左下角提示**：`HUDNotifier.ShowChallengeStarLoss`（FIFO 队列，小游戏期间可见），i18n `hud.starLoss` 中英双语；掉星防重点（LastChallengeStarsLogged）单发；≥95 豁免不掉星天然不触发。
 7. **数量倍数 = max(1, round(level×0.5))**（原 ×1..×200）：`GetQuantityMultiplier` 新公式；连锁——巨型鱼门槛与视觉缩放解耦（见 8）；万能鱼饵 12×50=600、挑战 5 分钟 5×50=250 均 <999，A16 钳制丢鱼问题消失。
 8. **巨型鱼按难度等级 ≥8**（连锁）：`RecordGiantFish` 参数 multiplier→level、门槛 >15→≥8；`GetVisualScale` 输入改等级（`1 + level×0.0270843`，100 级 ≈3.7084 端点不变）；`FishDisplayData.ActiveGiantFish` 元组 multiplier→level；`fish_giant <鱼ID> <等级>` 语义更新（TESTING-GUIDE/WIKI 同步）。
-9. **VanillaTips 提示注入（2026-08-15 用户指令，来源权重 11）**：新增 `S:VanillaTipsIntegration.cs`——`GameLaunched` 时经 `neoiw.vanillatips` API 以来源 `YourName.FishingExpanded`、来源级权重 11 注册 7 条钓鱼机制提示（【渔】前缀、中英双语、分类 general；机制：力竭/星之果茶/巨型鱼/助战/助战排位/α 终点/挑战鱼饵无助战）。未装 VanillaTips 时 `GetApi` 返回 null 静默跳过（无硬依赖）；不修改 VanillaTips 任何文件（该模组由并行窗口开发）。权重语义：来源级 0~50，首次注册值为默认、GMCM 可调。
+9. **VanillaTips 提示注入（2026-08-15 用户指令，来源权重 11）**：新增 `S:VanillaTipsIntegration.cs`——`GameLaunched` 时经 `neoiw.vanillatips` API 以来源 `YourName.FishingExpanded`、来源级权重 11 注册 7 条钓鱼机制提示（【渔】前缀、中英双语、分类 general；机制：力竭/星之果茶/巨型鱼/助战/助战排位/α 终点/挑战鱼饵无助战）。未装 VanillaTips 时 `GetApi` 返回 null 静默跳过（无硬依赖）；不修改 VanillaTips 任何文件（该模组由并行窗口开发）。权重语义：来源级 0~50，首次注册值为默认、GMCM 可调。**反证 #1（2026-08-16）**：部署版 `IVanillaTipsApi` 为嵌套接口，SMAPI `GetApi<T>` 拒绝映射为 `non-public interface`，导致注入失败并误报“VanillaTips 未安装”；已由 BATCH-069 修复（接口移到命名空间顶层）。
 
 ## R2：场景与反向测试
 

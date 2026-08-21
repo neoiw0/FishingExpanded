@@ -479,6 +479,31 @@ namespace FishingExpanded.Services
             }
             return result;
         }
+
+        /// <summary>BATCH-073: 玩家可计数皇冠鱼中拥有流动金色皇冠（挑战鱼饵 ≥95 级成功）的条数。</summary>
+        public static int GetCountableFlowCrownCount(Farmer player)
+        {
+            int count = 0;
+            foreach (string fishId in GetCountableStarredFish(player))
+            {
+                if (HasChallengeCrown(fishId, player))
+                    count++;
+            }
+            return count;
+        }
+
+        /// <summary>BATCH-073: 玩家可计数皇冠鱼中拥有增大流动金色皇冠（100 级挑战成功，图鉴 1.2 倍）的条数。
+        /// 这些鱼同时属于流动金色皇冠，因此在总概率加成中另外 +0.05%。</summary>
+        public static int GetCountableLevel100FlowCrownCount(Farmer player)
+        {
+            int count = 0;
+            foreach (string fishId in GetCountableStarredFish(player))
+            {
+                if (HasLevel100FlowCrown(fishId, player))
+                    count++;
+            }
+            return count;
+        }
         /// <summary>BATCH-035: 助战鱼难度排位 r∈[0,1]（0=玩家可计数皇冠鱼中最低难度，1=最高难度；
         /// 全部相同或列表为空时取 0.5=均匀）。只派生自现有 CollectionStars ∩ 原生 61 鱼的难度数据，无新持久状态。</summary>
         public static double GetAssistRank(string fishId, Farmer player, List<string> countableStarred)

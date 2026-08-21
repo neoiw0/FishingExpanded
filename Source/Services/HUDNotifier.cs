@@ -76,6 +76,12 @@ namespace FishingExpanded.Services
             ActiveMessageText.Clear();
         }
 
+        /// <summary>BATCH-070: 构造按 UI 视口 1/3 宽换行的本 Mod HUD 消息。</summary>
+        private static HUDMessage CreateMessage(string message, int whatType)
+        {
+            return new WrappingHUDMessage(message, whatType, Math.Max(1f, Game1.uiViewport.Width / 3f));
+        }
+
         /// <summary>BATCH-012/013/014/015/022: 显示钓鱼成功提示（支持封顶、触底、鱼王、非鱼类，修复第一次封顶问题）</summary>
         /// <param name="fishId">鱼的QualifiedItemId</param>
         /// <param name="newLevel">新的难度等级</param>
@@ -86,7 +92,7 @@ namespace FishingExpanded.Services
             if (Utils.SpecialFishHelper.IsLegendaryFish(fishId))
             {
                 string legendaryMessage = Utils.SpecialFishHelper.GetRandomLegendaryMessage();
-                EnqueueMessage(Game1.player, new HUDMessage(legendaryMessage, HUDMessage.achievement_type));
+                EnqueueMessage(Game1.player, CreateMessage(legendaryMessage, HUDMessage.achievement_type));
 
                 FishingLog.Log(
                     $"[HUDNotifier] 传奇鱼提示 | 鱼ID: {fishId} | 文案: {legendaryMessage}",
@@ -118,13 +124,12 @@ namespace FishingExpanded.Services
             {
                 // BATCH-030: 难度等级 <1（0 级和负数）的胜利也显示称号提示（弱称号“额...稍微强一点的个体”）；
                 // 取代 BATCH-022 的 ≤0 跳过逻辑。
-                string rankKey = DifficultyCalculator.GetRankKey(newLevel);
-                string rankName = ModEntry.ModHelper.Translation.Get(rankKey);
+                string rankName = ModEntry.GetDisplayRankName(newLevel);
                 message = ModEntry.ModHelper.Translation.Get("hud.challenge.title",
                     new { fishName, rank = rankName });
             }
 
-            EnqueueMessage(Game1.player, new HUDMessage(message, HUDMessage.newQuest_type));
+            EnqueueMessage(Game1.player, CreateMessage(message, HUDMessage.newQuest_type));
 
             FishingLog.Log(
                 $"[HUDNotifier] 成功提示显示 | 鱼: {fishName} ({fishId}) | " +
@@ -146,7 +151,7 @@ namespace FishingExpanded.Services
 
             string fishName = GetFishDisplayName(Utils.SpecialFishHelper.NormalizeItemId(fishId));
             string message = ChallengeDialogueGenerator.Generate(fishName, difficultyLevel);
-            EnqueueMessage(player, new HUDMessage(message, HUDMessage.newQuest_type));
+            EnqueueMessage(player, CreateMessage(message, HUDMessage.newQuest_type));
 
             FishingLog.Log(
                 $"[HUDNotifier] 星标鱼挑战宣言 | 鱼: {fishName} ({fishId}) | 等级: {difficultyLevel} | 文案: {message}",
@@ -176,7 +181,7 @@ namespace FishingExpanded.Services
                     message = ModEntry.ModHelper.Translation.Get("hud.challenge.impossible") + message;
                 }
 
-                EnqueueMessage(player, new HUDMessage(message, HUDMessage.error_type));
+                EnqueueMessage(player, CreateMessage(message, HUDMessage.error_type));
                 FishingLog.Log(
                     $"[HUDNotifier] 钓鱼等级建议 | 玩家: {player.UniqueMultiplayerID} | " +
                     $"鱼等级: {difficultyLevel} | 建议等级: {recommendedLevelText} | 当前钓鱼等级: {fishingLevel} | " +
@@ -212,14 +217,14 @@ namespace FishingExpanded.Services
             }
             else if (currentLevel < 0)
             {
-                message = ModEntry.ModHelper.Translation.Get("hud.fail.negative", new { fishName }) + $"（{Math.Abs(currentLevel)}）";
+                message = ModEntry.ModHelper.Translation.Get("hud.fail.negative", new { fishName }) + $"({Math.Abs(currentLevel)})";
             }
             else
             {
                 message = ModEntry.ModHelper.Translation.Get("hud.fail.positive", new { fishName });
             }
 
-            EnqueueMessage(Game1.player, new HUDMessage(message, HUDMessage.error_type));
+            EnqueueMessage(Game1.player, CreateMessage(message, HUDMessage.error_type));
 
             FishingLog.Log(
                 $"[HUDNotifier] 失败提示显示 | 鱼: {fishName} ({fishId}) | " +
@@ -235,7 +240,7 @@ namespace FishingExpanded.Services
                 string fishName = GetFishDisplayName(fishId);
                 int index = Game1.random.Next(1, 16);
                 string message = ModEntry.ModHelper.Translation.Get($"hud.starfruitTea.{index}", new { fishName });
-                EnqueueMessage(Game1.player, new HUDMessage(message, HUDMessage.newQuest_type));
+                EnqueueMessage(Game1.player, CreateMessage(message, HUDMessage.newQuest_type));
 
                 FishingLog.Log(
                     $"[HUDNotifier] 星之果茶掉落提示 | 鱼: {fishName} ({fishId}) | 文案: #{index}",
@@ -255,14 +260,14 @@ namespace FishingExpanded.Services
             try
             {
                 string fishName = GetFishDisplayName(fishId);
-                string rankName = ModEntry.ModHelper.Translation.Get(DifficultyCalculator.GetRankKey(level));
+                string rankName = ModEntry.GetDisplayRankName(level);
                 int index = Game1.random.Next(1, 21);
                 string key = $"hud.battleReward.{index}";
                 string message = ModEntry.ModHelper.Translation.Get(key, new { fishName, rankName });
                 if (string.IsNullOrWhiteSpace(message) || message == key)
                     message = $"{fishName}{rankName}希望下次能更尽兴些";
 
-                EnqueueMessage(Game1.player, new HUDMessage(message, HUDMessage.newQuest_type));
+                EnqueueMessage(Game1.player, CreateMessage(message, HUDMessage.newQuest_type));
 
                 FishingLog.Log(
                     $"[HUDNotifier] 持久战奖励提示 | 鱼: {fishName} ({fishId}) | 文案: #{index}",
@@ -283,7 +288,7 @@ namespace FishingExpanded.Services
             {
                 int percent = (3 - stars) * 20;
                 string message = ModEntry.ModHelper.Translation.Get("hud.starLoss", new { stars, percent });
-                EnqueueMessage(Game1.player, new HUDMessage(message, HUDMessage.error_type));
+                EnqueueMessage(Game1.player, CreateMessage(message, HUDMessage.error_type));
 
                 FishingLog.Log(
                     $"[HUDNotifier] 挑战星掉落提示 | 剩余星: {stars}/3 | 鱼获减少: -{percent}%",
@@ -302,7 +307,7 @@ namespace FishingExpanded.Services
             {
                 string fishName = GetFishDisplayName(fishId);
                 string message = ModEntry.ModHelper.Translation.Get("hud.dailyLimit", new { fishName });
-                EnqueueMessage(Game1.player, new HUDMessage(message, HUDMessage.newQuest_type));
+                EnqueueMessage(Game1.player, CreateMessage(message, HUDMessage.newQuest_type));
 
                 FishingLog.Log(
                     $"[HUDNotifier] 每日收获限额提示 | 鱼: {fishName} ({fishId})",

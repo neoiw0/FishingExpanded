@@ -165,6 +165,14 @@ namespace FishingExpanded.Utils
             return 0.10 * Math.Min(countableCrownCount, crownTarget) / crownTarget;
         }
 
+        /// <summary>BATCH-073: 助战触发总概率 = 基础概率 + 每条可计数流动金冠鱼 +0.1% + 每条可计数增大流动金冠鱼再 +0.05%。
+        /// 不设上限，由可计数 61 条皇冠上限自然限制。</summary>
+        public static double GetAssistChance(int countableCrownCount, int crownTarget, int flowCrownCount, int enlargedFlowCrownCount)
+        {
+            double baseChance = GetAssistChance(countableCrownCount, crownTarget);
+            return baseChance + 0.001 * flowCrownCount + 0.0005 * enlargedFlowCrownCount;
+        }
+
         /// <summary>BATCH-035: 助战临时钓鱼等级 = 0~40，权重随被选中鱼的难度排位 r∈[0,1] 线性倾斜：
         /// w(L) = 1 + s·(L-20)/20，s = -29/31 + 58r/31（2026-08-09 用户澄清：等级随机但随鱼难度排位；
         /// 示例最高鱼 40 级 3% vs 0 级 0.1% → 30 倍比值，采用线性倾斜实现该比值）。
