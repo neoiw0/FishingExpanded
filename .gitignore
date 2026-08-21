@@ -19,3 +19,29 @@ _analysis/festival-tmp/
 _analysis/**/bin/
 _analysis/**/obj/
 _analysis/**/Stardew Valley.il
+
+# Internal development / governance / decompilation evidence — not part of the public mod source
+_analysis/
+Governance/
+AGENTS.md
+CLAUDE.md
+BUG-LEDGER.md
+BUG-FIX-REPORT-*.md
+COMMAND-DEBUG-GUIDE.md
+CURRENT-WORK-HANDOFF.md
+DECOMPILATION-RESEARCH-INDEX.md
+DELEGATION-POLICY.md
+FISHING-BATCH-REPAIR-SOP.md
+FISHING-BATCH-TEMPLATE.md
+GAME-DESIGN*.md
+IMPLEMENTATION-SUMMARY.md
+INDIRECT-BUG-ANALYSIS.md
+LOADING-TIPS-PACK.md
+LOCAL-ENVIRONMENT.md
+LOCAL-PITFALLS.md
+MAINTENANCE-INDEX.md
+PERFORMANCE-OPTIMIZATION-*.md
+TESTING-GUIDE.md
+TESTING.md
+TRANSPILER-DEBUG.md
+WIKI.md
