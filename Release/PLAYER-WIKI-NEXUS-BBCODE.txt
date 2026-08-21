@@ -6,27 +6,27 @@ Every fish in Stardew Valley is starting to remember you—and form an opinion a
 Fishing Expanded turns the fishing minigame into a fair, deep, and endlessly addictive career. It doesn't overturn vanilla mechanics, doesn't add fake items, and doesn't cheat.
 It feels like a true DLC: it respects vanilla fishing first, then makes it look like this is exactly how the game was always meant to be.
 
-[size=4][b]Core Gameplay: Fish Difficulty Levels[/b][/size]
+[size=4][b]Core Gameplay: Fish Reputation — Every Species Rates You[/b][/size]
 
 [list]
-[*]Every fish has its own independent difficulty level (-10 to 100).
-[*]At low levels, fish are weaker and easier to catch; at high levels, they are stronger and more rewarding.
-[*]A successful catch raises the level; a failed catch lowers it.
-[*][b]The five legendary fish are exempt from this system[/b], keeping their vanilla experience; catching one once grants a crown directly.
+[*]Every species keeps its own independent [b]opinion of you[/b], from -10 to 100 — your reputation within that fish population.
+[*]Low reputation: they barely take you seriously — weak, easy catches. High reputation: they start testing you properly — stronger fish, far better rewards.
+[*]A successful catch raises their opinion of you; an escape lowers it.
+[*][b]The five legendary fish stand above all opinions[/b], keeping their vanilla experience; catching one once grants a crown directly.
 [/list]
 
-[i]In short: difficulty dynamically balances. The fish get stronger, and so do you.[/i]
+[i]In short: respect is earned dynamically. The more a species respects you, the harder it tests you — and the more it gives back.[/i]
 
-[size=4][b]How Does the Fish Difficulty Level Increase After a Successful Catch?[/b][/size]
+[size=4][b]How Does Their Opinion of You Rise After a Successful Catch?[/b][/size]
 
 [list]
-[*][b]Perfect catches (no escapes)[/b] gain the most.
-[*]The more escapes, the less you gain.
-[*][b]The higher your fishing level, the faster your fish levels grow[/b] (max fishing level is fastest).
-[*]Every successful catch has a minimum gain of +1.
+[*][b]Perfect catches (no escapes)[/b] impress them the most.
+[*]The more escapes, the less impressed they are.
+[*][b]The higher your fishing level, the faster their opinion of you grows[/b] (max fishing level is fastest).
+[*]Every successful catch is worth at least +1 respect.
 [/list]
 
-[size=4][b]Rank Titles (Some Ranks Are for You to Discover)[/b][/size]
+[size=4][b]Titles Conferred by the Fish (Some Ranks Are for You to Discover)[/b][/size]
 
 [list]
 [*]<1: ???
@@ -43,21 +43,21 @@ It feels like a true DLC: it respects vanilla fishing first, then makes it look 
 [*]100: ???
 [/list]
 
-[size=4][b]What Changes as Your Fish Levels Up[/b][/size]
+[size=4][b]What Changes as Their Opinion of You Grows[/b][/size]
 
 [list]
-[*][b]Harder fish[/b]: high-level fish become significantly harder and may use tricks like jumping.
-[*][b]More fish[/b]: catch quantities increase; at level 100 you can catch up to 100 at once.
-[*][b]Better quality[/b]: level 10 guarantees silver, level 25 guarantees gold, and level 50 guarantees iridium.
-[*][b]More XP[/b]: high-level fish are great for fishing mastery.
+[*][b]Harder tests[/b]: highly-rated fish become significantly harder and may use tricks like jumping.
+[*][b]More fish[/b]: catch quantities increase; at opinion 100 you can catch up to 100 at once.
+[*][b]Better quality[/b]: opinion 10 guarantees silver, opinion 25 guarantees gold, and opinion 50 guarantees iridium.
+[*][b]More XP[/b]: highly-rated fish are great for fishing mastery.
 [*][b]Bigger fish[/b]: held fish, flying animations, and displays all become larger.
-[*][b]Negative levels[/b]: fish become weaker and the catch bar gets more protection, great for learning.
+[*][b]Negative reputation[/b]: fish go easy on you and the catch bar gets more protection, great for learning.
 [/list]
 
 [size=4][b]Crowns: More Than a Collection[/b][/size]
 
 [list]
-[*]Normal fish earn a [b]crown[/b] in the collection page after a successful catch at [b]high difficulty[/b].
+[*]Normal fish grant a [b]crown[/b] in the collection page after a successful catch while their [b]opinion of you is high[/b].
 [*]The 5 vanilla legendary fish grant a crown [b]directly on the first catch[/b].
 [*]Crowns have a real effect: [b]your rod handling improves[/b].
 [list]
@@ -65,21 +65,21 @@ It feels like a true DLC: it respects vanilla fishing first, then makes it look 
 [*]More crowns mean better handling.
 [*]Countable crowns come from [b]56 normal vanilla fish + 5 vanilla legendary fish[/b]; collecting all 61 gives the ultimate feel.
 [/list]
-[*]Reach level 95+ and succeed with [b]challenge bait[/b] to upgrade the crown into a [b]flowing golden crown[/b]—purely gorgeous and a great flex. (At level 100 + challenge bait, there is even an easter egg.)
+[*]Reach opinion 95+ and succeed with [b]challenge bait[/b] to upgrade the crown into a [b]flowing golden crown[/b]—purely gorgeous and a great flex. (At opinion 100 + challenge bait, there is even an easter egg.)
 [/list]
 
 [i]Other mod fish / special entries only display a star as a collection badge; they do not affect rod handling.[/i]
 
-[size=4][b]What Happens at High Difficulty?[/b][/size]
+[size=4][b]What Happens When Your Reputation Is High?[/b][/size]
 
-At high levels, you will meet truly powerful fish: theoretical difficulty can reach about 5000 (for reference, vanilla legendary fish are usually below 100), with fiercer acceleration and even full-screen leaps.
+Once a species rates you highly, you will meet truly powerful fish: the champions they send can reach a theoretical power of about 5000 (for reference, vanilla legendary fish are usually below 100), with fiercer acceleration and even full-screen leaps.
 But the rewards scale up too—catch quantity, XP, and quality all increase significantly. You will never be asked to “fight harder for less.”
 
 [list]
 [*][b]Fish can jump[/b]: they leap up and down, requiring faster reactions.
 [*][b]Fish get tired[/b]: the longer the battle, the slower the fish becomes—but your rewards do not decrease.
 [*][b]Truce breaks[/b]: if you hold the rod still for 3 seconds, the fish stops to rest and gives you breathing room.
-[*][b]Backseeding[/b]: the same fish at the same level keeps the same behavior until you finally break it, so you can learn and practice.
+[*][b]Backseeding[/b]: the same species at the same opinion level keeps the same behavior until you finally break it, so you can learn and practice.
 [*][b]Fish assistance[/b]: fish you have already conquered may assist you in battle, greatly extending your catch bar.
 [*][b]Challenge Bait = Harder Boss Fights[/b]: only at high difficulty, the vanilla challenge bait system is reworked:
 [list]
@@ -87,7 +87,7 @@ But the rewards scale up too—catch quantity, XP, and quality all increase sign
 [*]Catching within 5 minutes grants extra quantity.
 [*]After the time limit, stars drop and the catch shrinks, but you [b]can still earn the crown[/b]—it is not all or nothing.
 [/list]
-[*][b]Consecutive failures show mercy[/b]: high-difficulty fish escape more slowly in the low catch-bar zone, giving you more chances to learn.
+[*][b]Consecutive failures show mercy[/b]: high-reputation fish escape more slowly in the low catch-bar zone, giving you more chances to learn.
 [/list]
 
 [size=4][b]Even Failure Has Consolation Prizes[/b][/size]
@@ -105,16 +105,16 @@ At high levels, you can catch absurdly huge fish. Nearby villagers will gasp in 
 [size=4][b]Starfruit Tea (Late-Game Bonus)[/b][/size]
 
 [list]
-[*]After fish level [b]50+[/b], successful catches have a chance to drop [b]Starfruit Tea[/b].
-[*]The higher the level, the higher the chance; around 25% at level 100.
+[*]Once a species' opinion of you reaches [b]50+[/b], successful catches have a chance to drop [b]Starfruit Tea[/b].
+[*]The higher their opinion, the higher the chance; around 25% at opinion 100.
 [*]Starfruit Tea permanently increases max energy—a genuinely valuable reward.
 [/list]
 
 [size=4][b]Trash, Algae, and Crab Pots[/b][/size]
 
 [list]
-[*]They can also level up, but cap at [b]level 8[/b].
-[*]At level 8, each catch gives up to 8 items.
+[*]Trash, algae and crab pots rate you too, but their opinion caps at [b]8[/b].
+[*]At opinion 8, each catch gives up to 8 items.
 [*]Crab pot hauls also count as a “success,” but each pot can only be collected once per day, so it is naturally limited.
 [/list]
 
@@ -135,11 +135,11 @@ At high levels, you can catch absurdly huge fish. Nearby villagers will gasp in 
 [size=4][b]Quick Start Guide[/b][/size]
 
 [list]
-[*][b]New players[/b]: first raise common fish to positive levels while raising your fishing level.
+[*][b]New players[/b]: first build positive reputation with common fish while raising your fishing level.
 [*][b]Mid-game[/b]: collect crowns to improve rod handling.
-[*][b]Going for level 100[/b]: recommended with all crowns + max fishing level + 2x Trap Bobbers + Iridium Seafoam Pudding.
-[*][b]Want giant fish[/b]: raise a fish to level 8+, then parade it around town before going home.
-[*][b]Want Starfruit Tea[/b]: focus on raising fish to level 50+.
+[*][b]Going for reputation 100[/b]: recommended with all crowns + max fishing level + 2x Trap Bobbers + Iridium Seafoam Pudding.
+[*][b]Want giant fish[/b]: raise a species' opinion to 8+, then parade it around town before going home.
+[*][b]Want Starfruit Tea[/b]: focus on building opinion 50+ with your favorite species.
 [*][b]Want a real challenge[/b]: equip Challenge Bait and start the backseeding boss fight.
 [/list]
 
@@ -147,7 +147,7 @@ At high levels, you can catch absurdly huge fish. Nearby villagers will gasp in 
 
 This mod is not about grinding more—it is about making [b]every cast feel like growth, surprise, and story[/b].
 
-The fish get stronger, and so do you. Your next cast might be the one that makes you a legend.
+The fish's opinion of you keeps rising, and so does your skill. Your next cast might be the one that makes you a legend.
 
 [size=4][b]----------------------------------------[/b][/size]
 
@@ -159,27 +159,27 @@ The fish get stronger, and so do you. Your next cast might be the one that makes
 Fishing Expanded 把钓鱼小游戏做成一段公平、耐玩、越钓越上头的完整生涯。不推翻原有机制，没有凭空造物，没有作弊。
 它像一个真正的 DLC：先完全尊重原版钓鱼，再让它看起来本来就该是这样。
 
-[size=4][b]核心玩法：鱼的难度等级[/b][/size]
+[size=4][b]核心玩法：鱼群评价——每个种群都在给你打分[/b][/size]
 
 [list]
-[*]每一种鱼都有独立的难度等级（-10 ~ 100）。
-[*]等级低时，鱼更弱、更容易钓；等级高时，鱼更强、奖励更好。
-[*]成功钓起会涨等级，失败会掉等级。
-[*][b]五大传奇鱼不参与本系统[/b]，保持原版体验；钓到一次直接给皇冠。
+[*]每一个鱼种都对你持有一份独立的[b]评价[/b]（-10 ~ 100），这就是你在该鱼群中的声誉。
+[*]评价低：它们没把你当回事——鱼更弱、更容易钓；评价高：它们开始认真考你——鱼更强、奖励更好。
+[*]成功钓起会让它们更看得起你（评价上涨），脱杆则会让评价下跌。
+[*][b]五大传奇鱼超然于一切评价之外[/b]，保持原版体验；钓到一次直接给皇冠。
 [/list]
 
-[i]总之：难度动态平衡，鱼在变强，你也在变强。[/i]
+[i]总之：尊重是动态挣来的。一个鱼种越看得起你，就越要认真考你——给的也越多。[/i]
 
-[size=4][b]一次成功，鱼的难度等级怎么涨？[/b][/size]
+[size=4][b]一次成功，鱼群的评价怎么涨？[/b][/size]
 
 [list]
-[*][b]完美钓起（没脱杆）[/b]涨得最多。
-[*]脱杆次数越多，涨得越少。
-[*][b]玩家钓鱼等级越高，等级涨得越快[/b]（满级钓鱼等级最快）。
-[*]每次成功至少会涨一点的保底。
+[*][b]完美钓起（没脱杆）[/b]最让它们刮目相看。
+[*]脱杆次数越多，它们越不为所动。
+[*][b]你的钓鱼等级越高，它们对你的评价涨得越快[/b]（满级钓鱼等级最快）。
+[*]每次成功至少涨一点尊重，保底不落空。
 [/list]
 
-[size=4][b]称号表（部分称号需要玩家亲自发现）[/b][/size]
+[size=4][b]鱼群授予你的称号（部分称号需要玩家亲自发现）[/b][/size]
 
 [list]
 [*]<1：？？？
@@ -196,15 +196,15 @@ Fishing Expanded 把钓鱼小游戏做成一段公平、耐玩、越钓越上头
 [*]100：？？？
 [/list]
 
-[size=4][b]等级带来的变化[/b][/size]
+[size=4][b]评价升高后的变化[/b][/size]
 
 [list]
-[*][b]鱼更难[/b]：高等级鱼的难度会明显上升，还会出现“跳鱼”等花招。
-[*][b]鱼更多[/b]：钓到的数量会变多，100 级时一次最多 100 条。
-[*][b]品质更好[/b]：10 级保底银星、25 级保底金星、50 级保底铱星。
-[*][b]经验更多[/b]：高等级鱼刷钓鱼精通特别快。
+[*][b]考验更难[/b]：高评价鱼种会明显变强，还会出现“跳鱼”等花招。
+[*][b]鱼更多[/b]：钓到的数量会变多，评价 100 时一次最多 100 条。
+[*][b]品质更好[/b]：评价 10 保底银星、25 保底金星、50 保底铱星。
+[*][b]经验更多[/b]：高评价鱼刷钓鱼精通特别快。
 [*][b]鱼更大[/b]：钓上来后拿在手里、飞行动画、展示都会变大。
-[*][b]负数等级[/b]：鱼会变弱，蓄力槽保护更强，适合新手练手。
+[*][b]负数评价[/b]：鱼会放水，蓄力槽保护更强，适合新手练手。
 [/list]
 
 [size=4][b]皇冠：不只是收藏[/b][/size]
@@ -218,29 +218,29 @@ Fishing Expanded 把钓鱼小游戏做成一段公平、耐玩、越钓越上头
 [*]皇冠越多，手感越好。
 [*]可计数皇冠来自 [b]56 种普通原生鱼 + 5 条原版传奇鱼[/b]，集齐这 61 个 = 完全体手感。
 [/list]
-[*]达到 95 级以上，再用[b]挑战鱼饵[/b]成功钓起，皇冠会升级成[b]流动金色皇冠[/b]，纯粹好看又能秀。（100 级 + 挑战鱼饵，还有彩蛋）
+[*]评价达到 95 以上，再用[b]挑战鱼饵[/b]成功钓起，皇冠会升级成[b]流动金色皇冠[/b]，纯粹好看又能秀。（评价 100 + 挑战鱼饵，还有彩蛋）
 [/list]
 
 [i]其他 Mod 鱼/特殊条目只显示“星星”，作为收藏；不影响手感。[/i]
 
-[size=4][b]高难度会发生什么？[/b][/size]
+[size=4][b]声誉很高时会发生什么？[/b][/size]
 
-高等级之后，你会遇见真正强大的鱼：理论难度可达约 5000（相对而言，原版鱼王难度一般在 100 以内）、加速更凶，甚至能整段横跳。
+当一个鱼种对你评价极高，你会遇见真正强大的对手：它们派出的战力理论上可达约 5000（相对而言，原版鱼王一般在 100 以内）、加速更凶，甚至能整段横跳。
 但奖励同步拉满——鱼获、经验、品质大幅增强。你永远不会被要求“打得更难，拿得更少”。
 
 [list]
 [*][b]鱼会跳[/b]：上蹿下跳，需要更快反应。
 [*][b]鱼会累[/b]：战斗时间越长，鱼会慢慢变慢，但你的奖励不减少。
 [*][b]可以停战[/b]：你 3 秒不动鱼竿，鱼会停下来休息，给你喘口气的时间。
-[*][b]背板机制[/b]：同一条鱼、同一个等级，在玩家成功破招之前，行为会固定。玩家可以记招、练招。
+[*][b]背板机制[/b]：同一种鱼、同一档评价，在你成功破招之前，行为会固定。可以记招、练招。
 [*][b]鱼的协助[/b]：已经收入麾下的鱼，有一定概率战斗中协助，大幅增加你的钓鱼条长度。
-[*][b]挑战鱼饵 = 更难的 Boss 战[/b]：仅在高难度下，重做原版挑战鱼饵机制：
+[*][b]挑战鱼饵 = 更难的 Boss 战[/b]：仅对高评价的鱼，重做原版挑战鱼饵机制：
 [list]
 [*]鱼不再会累。不再有协助。
 [*]5 分钟内钓到有额外数量加成。
 [*]超时后星星会掉，鱼获变少，但[b]仍有机会拿到皇冠[/b]，不会血本无归。
 [/list]
-[*][b]连续失败会“放水”[/b]：高难鱼在低条区逃跑速度会变慢，给你更多熟悉机会。
+[*][b]连续失败会“放水”[/b]：高评价的鱼在低条区逃跑速度会变慢，给你更多熟悉机会。
 [/list]
 
 [size=4][b]失败了也有安慰奖[/b][/size]
@@ -258,16 +258,16 @@ Fishing Expanded 把钓鱼小游戏做成一段公平、耐玩、越钓越上头
 [size=4][b]星之果茶（后期福利）[/b][/size]
 
 [list]
-[*]鱼等级 [b]≥50[/b] 后，成功钓起有几率获得[b]星之果茶[/b]。
-[*]等级越高概率越高，100 级时约 25%。
+[*]某个鱼种对你的评价 [b]≥50[/b] 后，成功钓起有几率获得[b]星之果茶[/b]。
+[*]评价越高概率越高，评价 100 时约 25%。
 [*]星之果茶可以永久提高体力上限，是实打实的好东西。
 [/list]
 
 [size=4][b]垃圾、藻类、蟹笼[/b][/size]
 
 [list]
-[*]它们也能升级，但封顶 [b]8 级[/b]。
-[*]8 级后每次最多拿 8 个。
+[*]垃圾、藻类和蟹笼也会评价你，但封顶 [b]8[/b]。
+[*]评价到 8 后每次最多拿 8 个。
 [*]蟹笼收获也算“成功”，但每个笼子每天只能收一次，天然有限。
 [/list]
 
@@ -288,11 +288,11 @@ Fishing Expanded 把钓鱼小游戏做成一段公平、耐玩、越钓越上头
 [size=4][b]快速上手指南[/b][/size]
 
 [list]
-[*][b]新手期[/b]：先把常见鱼练到正等级，顺便练高钓鱼等级。
+[*][b]新手期[/b]：先让常见鱼对你有正评价，顺便练高钓鱼等级。
 [*][b]中后期[/b]：收集皇冠，提升鱼竿手感。
-[*][b]想冲 100 级[/b]：建议全皇冠 + 钓鱼等级满级 + 2*陷阱浮标 + 铱星海泡布丁。
-[*][b]想看巨型鱼[/b]：把鱼刷到 8 级以上，钓到后别急着进家门，举着去人多的地方。
-[*][b]想刷星之果茶[/b]：优先把鱼练到 50 级以上。
+[*][b]想冲评价 100[/b]：建议全皇冠 + 钓鱼等级满级 + 2*陷阱浮标 + 铱星海泡布丁。
+[*][b]想看巨型鱼[/b]：把某个鱼种的评价刷到 8 以上，钓到后别急着进家门，举着去人多的地方。
+[*][b]想刷星之果茶[/b]：优先把喜欢的鱼种刷到评价 50 以上。
 [*][b]想挑战自我[/b]：换上挑战鱼饵，开始背板 Boss 战。
 [/list]
 
@@ -300,4 +300,4 @@ Fishing Expanded 把钓鱼小游戏做成一段公平、耐玩、越钓越上头
 
 这个 Mod 不是让你更肝，而是让[b]每一次抛竿都有成长、有惊喜、有故事[/b]。
 
-鱼在变强，你也在变强。下一杆，可能就是你封神的那一杆。
+它们对你的评价越来越高，你也越来越强。下一杆，可能就是你封神的那一杆。
