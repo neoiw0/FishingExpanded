@@ -273,7 +273,7 @@
   "rank.creator": "Primordial Dragon",
   "rank.taiyi": "The Primordial One",
   "config.enableLogging.name": "Enable logging",
-  "config.enableLogging.tooltip": "Turn off to suppress all Fishing Expanded log output.",
+  "config.enableLogging.tooltip": "OFF (default): no debug output; warnings and errors are always logged. ON: full debug logging (for troubleshooting).",
   "config.randomFishBehavior.name": "Fully random fish behavior (harder)",
   "config.randomFishBehavior.tooltip": "OFF (default): the same fish at the same level behaves identically until caught, so you can learn its pattern. ON: every attempt is completely random and never fixed - much harder.",
   "config.festivalFishing.name": "Apply mod rules to fishing festivals",

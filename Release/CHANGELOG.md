@@ -17,6 +17,8 @@
 
 ### Other
 
+- **Debug logging is now off by default**: a fresh install produces no debug/info log output in the SMAPI console. Warnings and errors are always logged regardless of the toggle, so bug reports still work out of the box. Turn on "Enable logging" in GMCM for full debug output when troubleshooting.
+- Rank titles renamed (EN+CN): Lord → Baron, Grand Duke → Duke, Divine King → King of Gods, Dragon God King → Primordial Dragon; the hidden 100-level title's English name is now "The Primordial One".
 - Manifest version bumped to 0.5.11; the installed manifest UniqueID is synced to `neoiw.FishingExpanded` on deployment (as planned in the 0.5.10 notes).
 
 
@@ -69,6 +71,8 @@
 
 ### 其他
 
+- **调试日志默认关闭**：全新安装不再向 SMAPI 控制台输出调试/信息日志。警告与错误不受开关影响、始终保留，报障开箱即用。排障时可在 GMCM 打开“Enable logging”查看完整调试日志。
+- 称号改名（中英）：领主→男爵、大公→公爵、神王→众神王、龙神王→祖龙王；100 级隐藏头衔英文名改为“The Primordial One”。
 - Manifest 版本号升至 0.5.11；部署时安装目录 UniqueID 同步为 `neoiw.FishingExpanded`（兑现 0.5.10 说明中的计划）。
 
 

@@ -273,7 +273,7 @@
   "rank.creator": "祖龙王",
   "rank.taiyi": "太一",
   "config.enableLogging.name": "启用日志",
-  "config.enableLogging.tooltip": "关闭后抑制本模组全部日志输出(含调试与限频日志)。",
+  "config.enableLogging.tooltip": "关闭(默认)：不输出调试信息，警告与错误始终保留。开启：输出完整调试日志(排障时使用)。",
   "config.randomFishBehavior.name": "鱼的行为全随机模式(更难)",
   "config.randomFishBehavior.tooltip": "关闭(默认)：同鱼同等级在钓起前行为固定，可以背板；开启：每局行为完全随机、永不固定，无法背板，难度更高。",
   "config.festivalFishing.name": "节日钓鱼应用模组规则",
