@@ -1,10 +1,10 @@
 Fishing Expanded 0.5.11 — Release Checksums / 发布校验和
 ==========================================================
-Release candidate rebuilt on 2026-08-22 16:40 (0.5.11 final: debug logging off by default with Warn/Error always visible, rank title overhaul EN+CN, difficulty calculator tuning, fish reputation wording across all player-facing text, 959 bilingual flavor lines).
-发布候选构建于 2026-08-22 16:40（0.5.11 终版：调试日志默认关闭且警告/错误始终可见、中英称号体系调整、难度计算器调优、全部玩家可见文本统一为鱼群声誉口径、959 条双语文案）。
+Release candidate rebuilt on 2026-08-22 16:52 (0.5.11 final: debug logging off by default with Warn/Error always visible — VanillaTips log routed through unified gate, rank title overhaul EN+CN, difficulty calculator tuning, fish reputation wording across all player-facing text, 959 bilingual flavor lines).
+发布候选构建于 2026-08-22 16:52（0.5.11 终版：调试日志默认关闭且警告/错误始终可见——VanillaTips 日志已纳入统一门控、中英称号体系调整、难度计算器调优、全部玩家可见文本统一为鱼群声誉口径、959 条双语文案）。
 
 SHA-256 (FishingExpanded-0.5.11.zip):
-2FB58B10E1153A8AD27A8D3BDB92F0F683399B2DA4B7F941F2DE1761C1369CE8
+4268DD0DE0BF7347F3A7E6FD2C5B823614791AE90C454905A44CC6347B23BD48
 
 SHA-256 (FishingExpanded.dll):
-6AC469B19609C03FC8C51A07201A360C40854C77607ED7C4327D6DAA797A6466
+C20BD30E48816E991847FE054C2CD6A85016A0B4A2C32C910B4A600FB582394E

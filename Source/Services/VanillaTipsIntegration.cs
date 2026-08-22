@@ -54,7 +54,8 @@ namespace FishingExpanded.Services
             "Fisher: With challenge bait on, no helpers will come."
         };
 
-        /// <summary>GameLaunched 时调用：尝试注册到 VanillaTips；未安装则静默跳过。</summary>
+        /// <summary>GameLaunched 时调用：尝试注册到 VanillaTips；未安装则静默跳过。
+        /// 日志统一走 FishingLog（2026-08-22：直接 monitor.Log 会绕过 EnableLogging 门控，玩家默认可见）。</summary>
         public static void TryRegister(IModHelper helper, IMonitor monitor)
         {
             try
@@ -62,7 +63,7 @@ namespace FishingExpanded.Services
                 var api = helper.ModRegistry.GetApi<IVanillaTipsApi>("neoiw.vanillatips");
                 if (api == null)
                 {
-                    monitor.Log("[FishingExpanded] VanillaTips 未安装，跳过提示注入。", LogLevel.Debug);
+                    FishingLog.Log("[FishingExpanded] VanillaTips 未安装，跳过提示注入。", LogLevel.Debug);
                     return;
                 }
 
@@ -74,11 +75,11 @@ namespace FishingExpanded.Services
                     ZhTexts,
                     EnTexts);
 
-                monitor.Log($"[FishingExpanded] 已向 VanillaTips 注入 {Ids.Length} 条提示(来源权重 {SourceWeight:0.##})。", LogLevel.Info);
+                FishingLog.Log($"[FishingExpanded] 已向 VanillaTips 注入 {Ids.Length} 条提示(来源权重 {SourceWeight:0.##})。", LogLevel.Info);
             }
             catch (Exception ex)
             {
-                monitor.Log($"[FishingExpanded] VanillaTips 注入失败(不影响本模组)：{ex}", LogLevel.Warn);
+                FishingLog.Log($"[FishingExpanded] VanillaTips 注入失败(不影响本模组)：{ex}", LogLevel.Warn);
             }
         }
     }
