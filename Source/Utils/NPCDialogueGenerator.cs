@@ -113,24 +113,28 @@ namespace FishingExpanded.Utils
 
         /// <summary>生成随机的鱼赞美文案（i18n 优先，缺失时回退到内置中文列表）。
         /// BATCH-033：尺寸统一显示厘米（fishSize×2.54 取整），与手持鱼旁原生尺寸数字一致。
-        /// BATCH-073：英文模式恢复原生英寸口径（fishSize + in.），其他语言继续厘米。</summary>
-        public static string GenerateFishPraise(string fishName, int fishSize)
+        /// BATCH-073：英文模式恢复原生英寸口径（fishSize + in.），其他语言继续厘米。
+        /// NPC 专属文案：传入 npcKey 时，60% 概率使用该 NPC 专属池（i18n npc.praise.&lt;npcKey&gt;，10 条），
+        /// 40% 概率使用通用池；npcKey 为空或没有专属配置时 100% 使用通用池。</summary>
+        public static string GenerateFishPraise(string fishName, int fishSize, string npcKey = null)
         {
             try
             {
-                string[] templates = LoadPraiseTemplates();
-                int fishSizeCm = (int)Math.Round(fishSize * 2.54);
-                bool isEnglish = LocalizedContentManager.CurrentLanguageCode == LocalizedContentManager.LanguageCode.en;
-                int displaySize = isEnglish ? fishSize : fishSizeCm;
+                string[] genericTemplates = LoadPraiseTemplates();
 
                 // Bug修复：Game1.random可能为null（极端情况）
                 if (Game1.random == null)
+                    return FormatPraise(genericTemplates[0], fishName, fishSize);
+
+                string[] chosen = genericTemplates;
+                if (!string.IsNullOrWhiteSpace(npcKey) && Game1.random.NextDouble() < 0.60)
                 {
-                    return string.Format(templates[0], fishName, displaySize);
+                    string[] specific = LoadNpcPraiseTemplates(npcKey);
+                    if (specific != null && specific.Length > 0)
+                        chosen = specific;
                 }
 
-                int index = Game1.random.Next(templates.Length);
-                return string.Format(templates[index], fishName, displaySize);
+                return FormatPraise(chosen[Game1.random.Next(chosen.Length)], fishName, fishSize);
             }
             catch (Exception ex)
             {
@@ -140,14 +144,41 @@ namespace FishingExpanded.Utils
                 return $"哇！这条{fishName}真大！";
             }
         }
+
+        /// <summary>按当前语言格式化一条赞美模板（英文=原生英寸 fishSize；其他语言=厘米 fishSize×2.54 取整）。</summary>
+        private static string FormatPraise(string template, string fishName, int fishSize)
+        {
+            int fishSizeCm = (int)Math.Round(fishSize * 2.54);
+            bool isEnglish = LocalizedContentManager.CurrentLanguageCode == LocalizedContentManager.LanguageCode.en;
+            int displaySize = isEnglish ? fishSize : fishSizeCm;
+            return string.Format(template, fishName, displaySize);
+        }
+
         private static string[] LoadPraiseTemplates()
         {
-            string translated = ModEntry.ModHelper.Translation.Get("npc.praise.templates");
-            if (string.IsNullOrWhiteSpace(translated) || translated == "npc.praise.templates")
+            // BATCH-075B：SMAPI 缺失键返回 "(no translation:KEY)" 占位文本（而非键本身），
+            // 必须用 HasValue() 判断存在性；反编译 StardewModdingAPI.Translation.ToString() 已证实。
+            var translation = ModEntry.ModHelper.Translation.Get("npc.praise.templates");
+            if (!translation.HasValue())
                 return PraiseTemplates;
 
-            string[] options = translated.Split('|', StringSplitOptions.RemoveEmptyEntries);
+            string[] options = translation.ToString().Split('|', StringSplitOptions.RemoveEmptyEntries);
             return options.Length == 0 ? PraiseTemplates : options;
+        }
+
+        /// <summary>读取某 NPC 的专属赞美文案池（npc.praise.&lt;npcKey&gt;）；无配置时返回 null。
+        /// BATCH-075B：键可能来自不可控身份（玩家命名的马/孩子、Mod 追加 NPC），缺失时必须干净回退通用池。</summary>
+        private static string[] LoadNpcPraiseTemplates(string npcKey)
+        {
+            if (string.IsNullOrWhiteSpace(npcKey))
+                return null;
+
+            var translation = ModEntry.ModHelper.Translation.Get($"npc.praise.{npcKey}");
+            if (!translation.HasValue())
+                return null;
+
+            string[] options = translation.ToString().Split('|', StringSplitOptions.RemoveEmptyEntries);
+            return options.Length == 0 ? null : options;
         }
     }
 }

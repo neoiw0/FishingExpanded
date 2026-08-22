@@ -1,10 +1,10 @@
-Fishing Expanded v0.5.10
+Fishing Expanded v0.5.11
 ========================
 
 ENGLISH
 -------
 A fair, deep fishing expansion for Stardew Valley.
-Every fish gets its own difficulty level, crowns, giant fish, challenge bait, and more—built to feel like vanilla Stardew.
+Every species keeps its own reputation score for you—plus rank titles, crowns, giant fish, challenge bait, and more—built to feel like vanilla Stardew.
 
 Requirements:
 - Stardew Valley 1.6+
@@ -32,7 +32,7 @@ Nexus:
 中文
 ----
 一个公平、耐玩、深度融入星露谷原版的钓鱼扩展。
-每条鱼都有自己的难度等级、皇冠、巨型鱼、挑战鱼饵等机制——玩起来像原版本来就该有的样子。
+每个种群都会偷偷给你记一笔评价——头衔、皇冠、巨型鱼、挑战鱼饵等机制一应俱全——玩起来像原版本来就该有的样子。
 
 需求：
 - 星露谷物语 1.6+

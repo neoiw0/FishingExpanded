@@ -45,7 +45,7 @@ Check:
 Use this exact structure (the outer folder MUST be named `FishingExpanded`):
 
 ```
-FishingExpanded-0.5.10.zip
+FishingExpanded-0.5.11.zip
 └── FishingExpanded/
     ├── FishingExpanded.dll
     ├── manifest.json
@@ -80,14 +80,14 @@ Open `Release\NEXUS-PAGE-CONTENT.md` and copy by table:
 
 ## 5. Upload the File
 
-Upload `FishingExpanded-0.5.10.zip` and fill in:
+Upload `FishingExpanded-0.5.11.zip` and fill in:
 
 | Field | Value |
 |---|---|
 | Mod version | 0.5.10 |
 | Game version | 1.6 (or 1.6+ if required) |
 | SMAPI version | 4.0.0+ (if present) |
-| File name | `FishingExpanded-0.5.10.zip` |
+| File name | `FishingExpanded-0.5.11.zip` |
 | Changelog | Paste the 0.5.10 section from `Release\CHANGELOG.md` |
 
 ## 6. Upload Images / Videos
@@ -176,7 +176,7 @@ D:\GGGGG\FishingExpanded\Source\bin\Release\net6.0
 请使用以下精确结构（外层文件夹名必须是 `FishingExpanded`）：
 
 ```
-FishingExpanded-0.5.10.zip
+FishingExpanded-0.5.11.zip
 └── FishingExpanded/
     ├── FishingExpanded.dll
     ├── manifest.json
@@ -211,14 +211,14 @@ FishingExpanded-0.5.10.zip
 
 ## 5. 上传文件
 
-上传 `FishingExpanded-0.5.10.zip`，填写：
+上传 `FishingExpanded-0.5.11.zip`，填写：
 
 | 字段 | 值 |
 |---|---|
 | Mod version | 0.5.10 |
 | Game version | 1.6（或按要求填 1.6+） |
 | SMAPI version | 4.0.0+（若该字段存在） |
-| File name | `FishingExpanded-0.5.10.zip` |
+| File name | `FishingExpanded-0.5.11.zip` |
 | Changelog | 粘贴 `Release\CHANGELOG.md` 中 0.5.10 的内容 |
 
 ## 6. 上传图片 / 视频

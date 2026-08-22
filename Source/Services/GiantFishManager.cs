@@ -145,7 +145,7 @@ namespace FishingExpanded.Services
             // 生成随机文案
             var itemData = ItemRegistry.GetDataOrErrorItem(fishId);
             string fishName = itemData?.DisplayName ?? "未知鱼类";
-            string message = NPCDialogueGenerator.GenerateFishPraise(fishName, fishSize);
+            string message = NPCDialogueGenerator.GenerateFishPraise(fishName, fishSize, GetNpcPraiseKey(npc));
 
             // BATCH-058: 动物 NPC 先叫一声，再把赞美内容放在括号里（例：汪汪！！！（这条狗鱼竟然有388cm简直是奇迹））
             // BATCH-073: 英文模式使用英文拟声词和英文叹号；中文保持原格式。
@@ -206,6 +206,24 @@ namespace FishingExpanded.Services
             if (sounds == null || sounds.Length == 0)
                 return null;
             return sounds[Game1.random.Next(sounds.Length)];
+        }
+
+        /// <summary>获取 NPC 专属文案查找键：宠物与马按类型映射 Dog/Cat/Horse，其余按 NPC 名。
+        /// BATCH-075B：1.6 的马可命名且默认名是本地化字符串（如“格罗佛”），
+        /// `npc.Name` 不可作马的身份键，必须与 GetAnimalSound 一样按类型识别。</summary>
+        private static string GetNpcPraiseKey(NPC npc)
+        {
+            if (npc is StardewValley.Characters.Pet pet)
+            {
+                string type = pet.petType?.Value;
+                if (string.Equals(type, StardewValley.Characters.Pet.type_dog, StringComparison.OrdinalIgnoreCase))
+                    return "Dog";
+                if (string.Equals(type, StardewValley.Characters.Pet.type_cat, StringComparison.OrdinalIgnoreCase))
+                    return "Cat";
+            }
+            if (npc is StardewValley.Characters.Horse)
+                return "Horse";
+            return npc.Name;
         }
 
         /// <summary>获取玩家附近的NPC（性能优化：使用平方距离，直接遍历）</summary>
@@ -465,7 +483,7 @@ namespace FishingExpanded.Services
             // 生成替换对话
             var itemData = ItemRegistry.GetDataOrErrorItem(fishId);
             string fishName = itemData?.DisplayName ?? "未知鱼类";
-            string dialogue = NPCDialogueGenerator.GenerateFishPraise(fishName, fishData.fishSize);
+            string dialogue = NPCDialogueGenerator.GenerateFishPraise(fishName, fishData.fishSize, GetNpcPraiseKey(npc));
 
             // 记录触发
             displayData.NPCDialogueTriggered[npc.Name].Add(fishId);

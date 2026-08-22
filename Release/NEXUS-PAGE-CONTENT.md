@@ -1,7 +1,7 @@
 # Fishing Expanded — Nexus Release Content (Bilingual)
 
 > Mod ID: 50595  
-> Version: 0.5.10  
+> Version: 0.5.11  
 > Author: neoiw  
 > All release-facing content is bilingual: full English first, then full Chinese.  
 > 所有发布相关内容均为中英双语：先英文全文，后中文全文。
@@ -16,10 +16,10 @@
 |---|---|
 | Mod Name | Fishing Expanded |
 | Mod ID | 50595 |
-| Version | 0.5.10 |
+| Version | 0.5.11 |
 | Game | Stardew Valley |
 | Category (suggested) | Gameplay Tweaks / Fishing |
-| Summary | Make every fish your own story: difficulty ranks, crowns, giant fish and challenge bait—built to feel like vanilla Stardew. |
+| Summary | Make every fish your own story: fish reputation, rank titles, crowns, giant fish and challenge bait—built to feel like vanilla Stardew. |
 
 ## 2. Full Description (English)
 
@@ -31,7 +31,7 @@ Some fish are caught. These fish are earned.
 
 Fishing Expanded is the fishing DLC I always dreamed of: a love letter that melts into vanilla Stardew, yet makes every species feel like its own adventure.
 
-Every fish has its own difficulty level. Progress from a barely-special individual all the way to the legendary Taiyi at level 100. As a species grows stronger, it becomes harder, bigger, and more rewarding:
+Every species keeps its own reputation score for you. Progress from a barely-special individual all the way to the legendary ??? at reputation 100. As a species grows stronger, it becomes harder, bigger, and more rewarding:
 
 - More fish per catch (up to 100 at max level)
 - Better quality: silver at level 10, gold at 25, iridium at 50
@@ -52,11 +52,12 @@ Nexus #50595 — your next cast is waiting.
 ## 3. Feature List (English)
 
 ```
-- Per-fish difficulty levels and rank titles (up to Taiyi / 100)
-- Dynamic difficulty, quantity, quality, experience and fish size
+- Per-species reputation with internal rank titles (up to ??? / 100)
+- Dynamic challenge, quantity, quality, experience and fish size
 - Collection crowns + rod proficiency feel
 - Giant fish with NPC bubble reactions and animal sounds
-- High-difficulty fish jumps, exhaustion, truce breaks, and combo phrases
+- Personalized praise: 50+ characters (and animal friends) each have their own reaction lines
+- High-reputation fish jumps, exhaustion, truce breaks, and combo phrases
 - Challenge Bait boss-mode with seeded patterns
 - Perseverance rewards (Seafoam Pudding, +3 cooking dishes)
 - Starfruit Tea drops at level 50+
@@ -106,7 +107,7 @@ Nexus #50595 — your next cast is waiting.
 
 ## 7. Screenshot Checklist (English)
 
-1. Cover image: a high-difficulty fishing minigame battle with visible floating tips.
+1. Cover image: a high-reputation fishing minigame battle with visible floating tips.
 2. Collection page showing crowns and "Challenge Level: Count (12)".
 3. Giant fish + NPC bubble reaction.
 4. Challenge Bait boss fight / fish jump telegraph.
@@ -138,7 +139,7 @@ Quality of Life
 - XP curve and XP difficulty clamp optimized: high-level mastery is faster without exploding numbers
 - Crab pot items are now included in the leveling system (cap level 8)
 - New festival fishing toggle: vanilla by default, optional mod rules via GMCM
-- New high-difficulty "combo phrase" backseeding experience
+- New high-reputation "combo phrase" backseeding experience
 - New fish_next test command (force next fish)
 - English localization improvements: inches, animal sounds, and more
 - Perseverance reward balance: 60+ seconds gives Seafoam Pudding at 60% chance
@@ -146,6 +147,7 @@ Quality of Life
 - Custom fishing title via config.json
 - Giant fish display resets on entering farmhouse or day change
 - Multiplayer-synced giant fish visuals and NPC bubbles
+- Personalized villager praise (60% personal lines / 40% classic pool)
 - VanillaTips API fix, HUD wrapping, punctuation normalization, and many stability fixes
 ```
 
@@ -159,10 +161,10 @@ Quality of Life
 |---|---|
 | Mod 名称 | Fishing Expanded |
 | Mod ID | 50595 |
-| 版本 | 0.5.10 |
+| 版本 | 0.5.11 |
 | 游戏 | 星露谷物语 |
 | 分类（建议） | Gameplay Tweaks / Fishing |
-| 摘要 | 让每条鱼都有自己的成长故事：难度等级、皇冠、巨型鱼、挑战鱼饵，一切像原版亲儿子一样自然。 |
+| 摘要 | 让每条鱼都有自己的成长故事：鱼群声誉、头衔、皇冠、巨型鱼、挑战鱼饵，一切像原版亲儿子一样自然。 |
 
 ## 2. 完整介绍（中文）
 
@@ -174,7 +176,7 @@ Quality of Life
 
 Fishing Expanded 就是我一直梦想中的星露谷钓鱼 DLC：一封和原版长在一起的情书，却又让每一条鱼都像一段独一无二的冒险。
 
-每条鱼都有自己的难度等级。从“额…稍微强一点的个体”一路练到 100 级的“太一”。鱼越强，越难钓，也越值得：
+每个种群都偷偷给你记着一笔评价。从“额…稍微强一点的个体”一路练到声誉 100 的“？？？”。评价越高，鱼越难钓，也越值得：
 
 - 一次钓更多：100 级最多一次 100 条
 - 品质更好：10 级保底银星，25 级保底金星，50 级保底铱星
@@ -195,10 +197,11 @@ N网号 50595：你的下一杆，正在等你。
 ## 3. 特性清单（中文）
 
 ```
-- 每鱼独立难度等级与称号（最高“太一”/100 级）
-- 动态难度、数量、品质、经验与鱼体尺寸
+- 每个种群独立声誉与内部头衔（最高“？？？”/100）
+- 动态挑战、数量、品质、经验与鱼体尺寸
 - 图鉴皇冠 + 鱼竿熟练度手感
 - 巨型鱼展示 + NPC 冒泡反应与动物叫声
+- 个性化赞美：50 多位角色（含动物朋友）各有专属台词
 - 高难鱼跳跃、力竭、停战、招式短语
 - 挑战鱼饵背板 Boss 战
 - 持久战奖励（海泡布丁、+3 钓鱼料理）
@@ -249,7 +252,7 @@ N网号 50595：你的下一杆，正在等你。
 
 ## 7. 截图清单（中文）
 
-1. 封面图：高难度钓鱼小游戏战斗，能看到浮动提示。
+1. 封面图：高声誉钓鱼小游戏战斗，能看到浮动提示。
 2. 图鉴页：皇冠 + “挑战等级：伯爵（12级）”。
 3. 巨型鱼 + NPC 冒泡反应。
 4. 挑战鱼饵 Boss 战 / 跳鱼前摇。
@@ -289,5 +292,6 @@ Quality of Life
 - 支持 config.json 自定义称号
 - 巨型鱼进农舍/换日重置
 - 联机/分屏巨型鱼视觉与 NPC 冒泡同步
+- 村民个性化赞美（60% 专属台词 / 40% 经典池）
 - VanillaTips API 修复、HUD 折行、标点规范化及多项稳定性修复
 ```

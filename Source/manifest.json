@@ -1,8 +1,8 @@
 {
   "Name": "Fishing Expanded",
   "Author": "neoiw",
-  "Version": "0.5.10",
-  "Description": "A fair, deep fishing expansion: per-fish difficulty ranks, dynamic rewards, collection crowns with rod proficiency, giant fish, challenge bait, exhaustion, NPC reactions and more—built to blend into vanilla Stardew Valley.",
+  "Version": "0.5.11",
+  "Description": "A fair, deep fishing expansion: per-species fish reputation, dynamic rewards, collection crowns with rod proficiency, giant fish, challenge bait, exhaustion, NPC reactions and more—built to blend into vanilla Stardew Valley.",
   "UniqueID": "neoiw.FishingExpanded",
   "EntryDll": "FishingExpanded.dll",
   "MinimumApiVersion": "4.0.0",

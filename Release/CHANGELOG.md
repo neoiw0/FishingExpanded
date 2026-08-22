@@ -6,6 +6,19 @@
 ---
 
 ## ENGLISH
+## 0.5.11
+
+> Current release candidate. Gameplay details follow `GAME-DESIGN.md` / `WIKI.md`; this list covers player-visible changes.
+
+### New Content / Mechanic Polish
+
+- **Personalized villager praise**: 51 characters (35 villagers, 10 special/story NPCs, and 6 animals: pet dog/cat, horse, trash bear, raccoon, parrot) each have 10 unique giant-fish praise lines written around their own background and personality. When you show off a giant fish, there is a 60% chance the NPC uses their personal lines and a 40% chance the classic generic pool; NPCs without a personal pool (children, mod-added NPCs) always use the generic pool.
+- Personalized lines focus on natural fish-name reactions; only a few science-minded characters mention the exact size (units still follow the current language).
+
+### Other
+
+- Manifest version bumped to 0.5.11; the installed manifest UniqueID is synced to `neoiw.FishingExpanded` on deployment (as planned in the 0.5.10 notes).
+
 
 ## 0.5.10
 
@@ -18,7 +31,7 @@
 - **XP curve optimization**: XP multiplier grows linearly from ×5 at level 10 to ×20 at level 100; the XP difficulty input is clamped to `[vanilla difficulty, 120]`, so low difficulty never gives less than vanilla and high difficulty never explodes.
 - **Crab pot items are now included in the leveling system**: crab pot fish and trash follow non-fish rules (cap level 8), +1 level per haul.
 - **Festival fishing toggle**: off by default = SquidFest, Trout Derby, and Festival of Ice are fully vanilla; when enabled, mod rules apply and festival scores scale with the quantity multiplier.
-- **High-difficulty "combo phrase" backseeding**: high-difficulty fish replay a fixed segment after teleporting, letting players learn patterns.
+- **High-reputation "combo phrase" backseeding**: high-reputation fish replay a fixed segment after teleporting, letting players learn patterns.
 - **Challenge bait backseeding seed**: the same fish at the same level has fixed behavior under challenge bait, cleared after a successful catch.
 - **Challenge star loss notification**: after 5 minutes, one star drops per minute with a clear left-bottom message showing remaining stars and catch discount.
 - **Fixed fishing-level factor and success floor**: higher fishing levels level up fish faster; every successful catch grants at least +1.
@@ -40,11 +53,24 @@
 
 ## EARLIER VERSIONS (Brief)
 
-- **0.5.x early**: difficulty level system, HUD messages, catch-bar protection, crowns and rod proficiency, giant fish with NPC reactions, exhaustion, perseverance rewards, Starfruit Tea, Wild Bait bonus, and multiplayer/split-screen data isolation were all completed across the 0.5.x iterations.
+- **0.5.x early**: fish reputation system, HUD messages, catch-bar protection, crowns and rod proficiency, giant fish with NPC reactions, exhaustion, perseverance rewards, Starfruit Tea, Wild Bait bonus, and multiplayer/split-screen data isolation were all completed across the 0.5.x iterations.
 
 ---
 
 ## 中文
+## 0.5.11
+
+> 当前发布候选版本。机制以 `GAME-DESIGN.md` / `WIKI.md` 为准，这里只列玩家可感知的主要变化。
+
+### 新内容 / 机制完善
+
+- **村民个性化赞美**：51 位角色（35 位村民、10 位特殊/剧情 NPC、6 类动物——宠物狗/猫、马、垃圾熊、浣熊、鹦鹉）各有 10 条按其背景与身份定制的巨型鱼赞美台词。举起巨型鱼时，NPC 有 60% 概率说专属台词、40% 概率说经典通用文案；没有专属池的角色（孩子、Mod 追加 NPC）始终使用通用池。
+- 专属台词以自然的鱼名反应为主，仅少数科学家角色提及具体尺寸（单位仍跟随当前语言）。
+
+### 其他
+
+- Manifest 版本号升至 0.5.11；部署时安装目录 UniqueID 同步为 `neoiw.FishingExpanded`（兑现 0.5.10 说明中的计划）。
+
 
 ## 0.5.10
 
@@ -57,7 +83,7 @@
 - **经验曲线优化**：经验倍数 10 级 ×5 → 100 级 ×20 线性增长；经验公式的难度输入钳制在 `[原生难度, 120]`，低难度不会比原版少，高难度也不会数值爆炸。
 - **蟹笼物品纳入升级系统**：蟹笼鱼与蟹笼垃圾按非鱼类规则升级（上限 8 级），收获一次 +1 级。
 - **节日钓鱼开关**：默认关闭 = 鱿鱼节、鳟鱼大赛、冰雪节完全原版；开启后模组规则生效，且节日分数按数量倍数提升。
-- **高难鱼“招式短语”**：高难度鱼在瞬移后会循环播放一段固定轨迹，玩家可以背板。
+- **高声誉鱼“招式短语”**：高声誉的鱼在瞬移后会循环播放一段固定轨迹，玩家可以背板。
 - **挑战鱼饵背板种子**：同鱼同等级在挑战鱼饵下行为固定，钓起后清除。
 - **挑战星掉星提示**：超出 5 分钟后每分钟掉一颗星，并在左下角提示剩余星数和鱼获折扣。
 - **固定钓鱼等级系数与成功保底**：高钓鱼等级升级更快；成功至少 +1 级。
@@ -79,4 +105,4 @@
 
 ## 更早版本（简略）
 
-- **0.5.x 早期**：难度等级系统、HUD 提示、蓄力槽保护、皇冠与鱼竿熟练度、巨型鱼与 NPC 反应、力竭机制、持久战奖励、星之果茶、万能鱼饵加成、多人/分屏数据隔离等核心系统均在 0.5.x 迭代中完成。
+- **0.5.x 早期**：鱼群声誉系统、HUD 提示、蓄力槽保护、皇冠与鱼竿熟练度、巨型鱼与 NPC 反应、力竭机制、持久战奖励、星之果茶、万能鱼饵加成、多人/分屏数据隔离等核心系统均在 0.5.x 迭代中完成。
