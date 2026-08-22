@@ -20,6 +20,15 @@ Install:
 Uninstall:
 - Delete the `FishingExpanded` folder. Your vanilla save is safe.
 
+Advanced (optional, manual edit of config.json):
+After the first launch you will find `FishingExpanded/config.json` inside your Mods folder.
+- "CustomFishingTitle": replaces the rank title shown for ALL fish with one text of your choice.
+  * Default "" = built-in ladder (Elite, Knight, Baron, Count, Duke, Prince, Emperor...).
+    "CustomFishingTitle": ""
+  * Example: "CustomFishingTitle": "Legend of the Pond"
+    -> every fish is displayed as "Legend of the Pond" — from Elite all the way to the hidden top rank.
+  * Display only: difficulty and rewards are never affected. Edit while the game is closed.
+
 Source & License:
 - Open source under GPL-3.0. See LICENSE.
 - Source code: https://github.com/neoiw0/FishingExpanded
@@ -47,6 +56,15 @@ Nexus:
 
 卸载：
 - 删除 `FishingExpanded` 文件夹即可。原版存档安全。
+
+高级设置（可选，手动编辑 config.json）：
+首次启动后，Mods 目录下会生成 `FishingExpanded/config.json`。
+- "CustomFishingTitle"：把所有鱼显示的职阶称号替换成你自己的一段文字。
+  * 默认 "" 使用内置称号阶梯：精英、骑士、男爵、伯爵、公爵、亲王、帝王……
+    "CustomFishingTitle": ""
+  * 例子："CustomFishingTitle": "湖畔传说"
+    → 无论钓到哪个职阶的鱼，称号都显示为“湖畔传说”——从精英一路到隐藏头衔。
+  * 只影响显示，难度与奖励完全不受影响。请在游戏关闭时编辑。
 
 源码与许可证：
 - 开源，GPL-3.0。见 LICENSE。
