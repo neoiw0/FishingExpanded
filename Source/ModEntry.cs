@@ -40,6 +40,9 @@ namespace FishingExpanded
         private int _cleanupCounter = 0;
         private int _hudQueueCounter = 0; // BATCH-032: HUD 提示队列驱动计数器
 
+        // BATCH-079: PatchAll 所用 Harmony 实例（WoL 兼容层进档复核复用；Entry 内赋值）
+        private Harmony _patchHarmony;
+
         // BATCH-042/044: GMCM 重置两步确认（开关待命 + 原生问题对话框二次确认；无超时，必须明确选择）
         private static bool _resetPending;
         private static bool _resetSequenceStarted;
@@ -59,8 +62,12 @@ namespace FishingExpanded
             {
                 // 注册 Harmony Patches
                 var harmony = new Harmony(ModManifest.UniqueID);
+                _patchHarmony = harmony;
                 harmony.PatchAll();
                 FishingLog.Log("Harmony Patches 注册成功", LogLevel.Debug);
+
+                // BATCH-079: Walk of Life 兼容层（未装 WoL 时休眠；装 WoL 时隔离其对小游戏参数的写入）
+                Services.WalkOfLifeCompatibility.OnEntry(harmony, helper);
 
                 // 注册事件监听器
                 helper.Events.GameLoop.SaveLoaded += OnSaveLoaded;
@@ -86,6 +93,10 @@ namespace FishingExpanded
         /// <summary>存档加载后</summary>
         private void OnSaveLoaded(object sender, SaveLoadedEventArgs e)
         {
+            // BATCH-079: WoL 兼容层进档复核（幂等防重挂；一次性提示；未装 WoL 时无操作）
+            Services.WalkOfLifeCompatibility.OnSaveLoaded(
+                _patchHarmony ?? new Harmony(ModManifest.UniqueID), Helper);
+
             DifficultyManager.LoadData(Game1.player);
             // BATCH-043: 装模组前已钓到的原版传奇鱼补发皇冠（幂等；按原生 fishCaught 记录）
             DifficultyManager.BackfillLegendaryCrowns(Game1.player);
@@ -193,6 +204,43 @@ namespace FishingExpanded
                 value => Config.EnableFestivalFishingMods = value,
                 () => Helper.Translation.Get("config.festivalFishing.name"),
                 () => Helper.Translation.Get("config.festivalFishing.tooltip"));
+
+            // BATCH-076: 收益缩放（默认 100%，允许 10%~300%，钳制见 ModConfig.Clamped*Percent）。
+            // 条数收益提示动态显示当前实际锚点阵列（按实际锚点为准）。
+            api.AddNumberOption(
+                ModManifest,
+                () => Config.QuantityIncomePercent,
+                value => Config.QuantityIncomePercent = (int)Math.Round(value),
+                () => Helper.Translation.Get("config.quantityIncome.name"),
+                () => Helper.Translation.Get("config.quantityIncome.tooltip") + "\n"
+                    + Utils.DifficultyCalculator.FormatQuantityAnchors(
+                        Helper.Translation.Get("config.anchor.item"),
+                        Helper.Translation.Get("config.anchor.sep")),
+                10f, 300f, 1f,
+                value => $"{value:0}%");
+
+            api.AddNumberOption(
+                ModManifest,
+                () => Config.ExperienceIncomePercent,
+                value => Config.ExperienceIncomePercent = (int)Math.Round(value),
+                () => Helper.Translation.Get("config.experienceIncome.name"),
+                () => Helper.Translation.Get("config.experienceIncome.tooltip"),
+                10f, 300f, 1f,
+                value => $"{value:0}%");
+
+            // BATCH-078: 无小游戏物品条数收益（垃圾/藻类等与蟹笼收获的专属曲线，独立于主曲线缩放）。
+            api.AddNumberOption(
+                ModManifest,
+                () => Config.NoMinigameQuantityIncomePercent,
+                value => Config.NoMinigameQuantityIncomePercent = (int)Math.Round(value),
+                () => Helper.Translation.Get("config.noMinigameQuantityIncome.name"),
+                () => Helper.Translation.Get("config.noMinigameQuantityIncome.tooltip") + "\n"
+                    + Utils.DifficultyCalculator.FormatQuantityAnchors(
+                        Utils.DifficultyCalculator.NoMinigameQuantityAnchors,
+                        Helper.Translation.Get("config.anchor.itemNoMinigame"),
+                        Helper.Translation.Get("config.anchor.sep")),
+                10f, 300f, 1f,
+                value => $"{value:0}%");
 
             RegisterGmcmResetSection(api);
         }
@@ -542,7 +590,7 @@ namespace FishingExpanded
             FishingLog.Log($"失败次数: {stats.FailCount}", LogLevel.Info);
             FishingLog.Log($"难度等级: {level} ({GetDisplayRankName(level)})", LogLevel.Info);
             FishingLog.Log($"难度倍数: {Utils.DifficultyCalculator.GetDifficultyMultiplier(level):F2}x", LogLevel.Info);
-            FishingLog.Log($"数量倍数: {Utils.DifficultyCalculator.GetQuantityMultiplier(level)}x", LogLevel.Info);
+            FishingLog.Log($"数量倍数期望: {Utils.DifficultyCalculator.GetQuantityMultiplierExact(level):F2}x", LogLevel.Info);
             FishingLog.Log($"品质门槛: +{Utils.DifficultyCalculator.GetQualityTier(level)} (0=普通/1=银/2=金/4=铱, BATCH-060)", LogLevel.Info);
             FishingLog.Log($"收藏星标: {(hasStar ? "★ 已获得" : "未获得")}", LogLevel.Info);
             FishingLog.Log("===========================================", LogLevel.Info);
@@ -1268,12 +1316,77 @@ namespace FishingExpanded
             bool crabOyster = DifficultyManager.IsNonFishItem("(O)723");
             bool crabNotVanillaFish = !DifficultyManager.IsNonFishItem("(O)128");
             bool crabNonFishLevelCap = DifficultyManager.GetMaxDifficultyLevel("(O)715") == 8;
-            bool crabQuantity8 = Utils.DifficultyCalculator.GetQuantityMultiplier(8) == 8;
+
+            // BATCH-077: 数量锚点曲线自测（Exact=确定性线性期望；概率过渡仅作用于不足 1 条的余量）
+            Report("数量: -10级期望=1", Utils.DifficultyCalculator.GetQuantityMultiplierExact(-10) == 1d,
+                $"实际 {Utils.DifficultyCalculator.GetQuantityMultiplierExact(-10)}");
+            Report("数量: 0级期望=1", Utils.DifficultyCalculator.GetQuantityMultiplierExact(0) == 1d,
+                $"实际 {Utils.DifficultyCalculator.GetQuantityMultiplierExact(0)}");
+            Report("数量: 8级期望=2", Utils.DifficultyCalculator.GetQuantityMultiplierExact(8) == 2d,
+                $"实际 {Utils.DifficultyCalculator.GetQuantityMultiplierExact(8)}");
+            Report("数量: 16级期望=4", Utils.DifficultyCalculator.GetQuantityMultiplierExact(16) == 4d,
+                $"实际 {Utils.DifficultyCalculator.GetQuantityMultiplierExact(16)}");
+            Report("数量: 32级期望=8", Utils.DifficultyCalculator.GetQuantityMultiplierExact(32) == 8d,
+                $"实际 {Utils.DifficultyCalculator.GetQuantityMultiplierExact(32)}");
+            Report("数量: 56级期望=24", Utils.DifficultyCalculator.GetQuantityMultiplierExact(56) == 24d,
+                $"实际 {Utils.DifficultyCalculator.GetQuantityMultiplierExact(56)}");
+            Report("数量: 100级期望=100", Utils.DifficultyCalculator.GetQuantityMultiplierExact(100) == 100d,
+                $"实际 {Utils.DifficultyCalculator.GetQuantityMultiplierExact(100)}");
+            Report("数量: 4级期望=1.5(用户示例)", Math.Abs(Utils.DifficultyCalculator.GetQuantityMultiplierExact(4) - 1.5d) < 1e-9,
+                $"实际 {Utils.DifficultyCalculator.GetQuantityMultiplierExact(4)}");
+            Report("数量: 12级期望=3(恒定)", Math.Abs(Utils.DifficultyCalculator.GetQuantityMultiplierExact(12) - 3d) < 1e-9,
+                $"实际 {Utils.DifficultyCalculator.GetQuantityMultiplierExact(12)}");
+            Report("数量: 78级期望=62(恒定)", Math.Abs(Utils.DifficultyCalculator.GetQuantityMultiplierExact(78) - 62d) < 1e-9,
+                $"实际 {Utils.DifficultyCalculator.GetQuantityMultiplierExact(78)}");
+
+            // 概率过渡统计：4级期望 1.5 → ×2 占比应在 35%~65%（2000 次；偏差容限 ≥13σ，误报概率可忽略）
+            int twoCount = 0;
+            const int rollTotal = 2000;
+            for (int rollIndex = 0; rollIndex < rollTotal; rollIndex++)
+            {
+                if (Utils.DifficultyCalculator.GetQuantityMultiplier(4) == 2)
+                    twoCount++;
+            }
+            Report("数量: 4级概率过渡≈50%", twoCount >= rollTotal * 35 / 100 && twoCount <= rollTotal * 65 / 100,
+                $"×2 占比 {(double)twoCount * 100 / rollTotal:F1}% ({twoCount}/{rollTotal})");
+
+            // 整数期望等级无随机：78 级期望恰为 62 条，任何次数都应恒定
+            bool stable78 = true;
+            for (int rollIndex = 0; rollIndex < 100 && stable78; rollIndex++)
+                stable78 = Utils.DifficultyCalculator.GetQuantityMultiplier(78) == 62;
+            Report("数量: 78级恒定62条(整数期望不随机)", stable78, $"100 次采样全部=62? {stable78}");
+
+            // BATCH-078: 无小游戏物品专属曲线（确定性期望 + 锚点恒定 + 训练竿常量与封顶判定）
+            Report("数量: 无小游戏0级=1", Utils.DifficultyCalculator.GetNoMinigameQuantityMultiplierExact(0) == 1d,
+                $"实际 {Utils.DifficultyCalculator.GetNoMinigameQuantityMultiplierExact(0)}");
+            Report("数量: 无小游戏4级期望=4.5", Math.Abs(Utils.DifficultyCalculator.GetNoMinigameQuantityMultiplierExact(4) - 4.5d) < 1e-9,
+                $"实际 {Utils.DifficultyCalculator.GetNoMinigameQuantityMultiplierExact(4)}");
+            Report("数量: 无小游戏8级=8", Utils.DifficultyCalculator.GetNoMinigameQuantityMultiplierExact(8) == 8d,
+                $"实际 {Utils.DifficultyCalculator.GetNoMinigameQuantityMultiplierExact(8)}");
+            Report("数量: 无小游戏负级钳1", Utils.DifficultyCalculator.GetNoMinigameQuantityMultiplierExact(-10) == 1d,
+                $"实际 {Utils.DifficultyCalculator.GetNoMinigameQuantityMultiplierExact(-10)}");
+            bool stableTrash8 = true;
+            for (int rollIndex = 0; rollIndex < 100 && stableTrash8; rollIndex++)
+                stableTrash8 = Utils.DifficultyCalculator.GetNoMinigameQuantityMultiplier(8) == 8;
+            Report("数量: 无小游戏8级恒定8个", stableTrash8, $"100 次采样全部=8? {stableTrash8}");
+            Report("训练竿: 声誉上限=4", DifficultyManager.TrainingRodLevelCap == 4,
+                $"实际 {DifficultyManager.TrainingRodLevelCap}");
+            Report("掷签: 非鱼升级率=5%", Math.Abs(DifficultyManager.NonFishLevelUpChance - 0.05) < 1e-9,
+                $"实际 {DifficultyManager.NonFishLevelUpChance}");
+            Report("掷签: 未中提示率=20%", Math.Abs(DifficultyManager.NonFishLevelMissHintChance - 0.20) < 1e-9,
+                $"实际 {DifficultyManager.NonFishLevelMissHintChance}");
+            Report("训练竿: 3级+1不触发封顶", !DifficultyManager.WouldTrainingCapTrigger(3, 1, false),
+                $"实际 {DifficultyManager.WouldTrainingCapTrigger(3, 1, false)}");
+            Report("训练竿: 3级+5触发封顶", DifficultyManager.WouldTrainingCapTrigger(3, 5, false),
+                $"实际 {DifficultyManager.WouldTrainingCapTrigger(3, 5, false)}");
+            Report("训练竿: 50级任意触发封顶", DifficultyManager.WouldTrainingCapTrigger(50, 1, false),
+                $"实际 {DifficultyManager.WouldTrainingCapTrigger(50, 1, false)}");
             Report("蟹笼: 龙虾=非鱼(上限8)", crabLobster, $"715 → {crabLobster}");
             Report("蟹笼: 牡蛎=非鱼", crabOyster, $"723 → {crabOyster}");
             Report("蟹笼: 狗鱼仍为真鱼", crabNotVanillaFish, $"128 → {DifficultyManager.IsNonFishItem("(O)128")}");
             Report("蟹笼: 上限=8", crabNonFishLevelCap, $"715 上限 {DifficultyManager.GetMaxDifficultyLevel("(O)715")}");
-            Report("蟹笼: 数量倍数 8级=8", crabQuantity8, $"实际 {Utils.DifficultyCalculator.GetQuantityMultiplier(8)}");
+            Report("数量: 主曲线锚点 8级=2(蟹笼另用无小游戏曲线,见上)", Utils.DifficultyCalculator.GetQuantityMultiplierExact(8) == 2d,
+                $"实际 {Utils.DifficultyCalculator.GetQuantityMultiplierExact(8)}");
 
             // BATCH-066: 节日钓鱼开关（只读断言；不触碰任何状态）
             bool festivalOff = !Services.FestivalFishingService.IsFestivalFishingActive();

@@ -1,4 +1,4 @@
-Fishing Expanded v0.5.11
+Fishing Expanded v1.0.0
 ========================
 
 ENGLISH
@@ -53,6 +53,10 @@ After the first launch you will find `FishingExpanded/config.json` inside your M
      "CustomFishingTitle": "It's Just a Fish"
    -> every fish shows "It's Just a Fish" at every level.
    Leave "" to keep the built-in ladder. If both are set, the list above wins.
+
+3) Income scaling sliders live in the in-game mod options menu (GMCM):
+   Quantity income / XP income / No-minigame quantity income.
+   Default 100%, adjustable 10%-300%. No manual editing needed.
 
 Source & License:
 - Open source under GPL-3.0. See LICENSE.
@@ -112,6 +116,9 @@ Nexus:
      "CustomFishingTitle": "就是条鱼"
    → 无论钓到哪个职阶的鱼，称号都显示为“就是条鱼”。
    留空 "" 按内置阶梯显示。两个字段同时填写时，上面的列表优先。
+
+3）收益缩放滑杆在游戏内模组选项菜单（GMCM）里：条数收益 / 经验收益 /
+   无小游戏物品条数收益。默认 100%，可调 10%~300%，无需手动改文件。
 
 源码与许可证：
 - 开源，GPL-3.0。见 LICENSE。

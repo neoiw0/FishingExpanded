@@ -21,6 +21,31 @@ namespace FishingExpanded
         /// 冰雪节每次成功 +数量倍数 分）。</summary>
         public bool EnableFestivalFishingMods { get; set; } = false;
 
+        /// <summary>BATCH-076: 条数收益缩放百分比。默认 100；有效范围 [10, 300]（经 ClampedQuantityPercent
+        /// 钳制，GMCM 限输入范围，手改 config.json 同样兜底）。作用于钓鱼结算最终条数：
+        /// 万能鱼饵/挑战鱼饵/难度等级数量倍数/掉星折扣全部完成之后整体缩放（向上取整、每次渔获至少 1 条）；
+        /// 蟹笼在难度等级倍数后、原生书《Crabbing》×2 前缩放；节日原生模式不生效。</summary>
+        public int QuantityIncomePercent { get; set; } = 100;
+
+        /// <summary>BATCH-078: 无小游戏物品条数收益缩放百分比（非鱼类：垃圾/藻类等与蟹笼收获）。
+        /// 默认 100；有效范围 [10, 300]。作用于该类物品的专属数量曲线结果之后（向上取整、至少 1 个）；
+        /// 与主曲线的 QuantityIncomePercent 相互独立。</summary>
+        public int NoMinigameQuantityIncomePercent { get; set; } = 100;
+
+        /// <summary>BATCH-078: 有效无小游戏物品条数收益百分比（[10, 300] 钳制后）。</summary>
+        public int ClampedNoMinigameQuantityPercent => Math.Min(300, Math.Max(10, NoMinigameQuantityIncomePercent));
+
+        /// <summary>BATCH-076: 经验收益缩放百分比。默认 100；有效范围 [10, 300]（经 ClampedExperiencePercent
+        /// 钳制）。作用于钓鱼结算经验：经验基数重算与难度等级经验倍数之后整体缩放（向上取整）；
+        /// 每日收获限额的超限清零优先；节日原生模式与蟹笼固定经验不生效。</summary>
+        public int ExperienceIncomePercent { get; set; } = 100;
+
+        /// <summary>BATCH-076: 有效条数收益百分比（[10, 300] 钳制后）。</summary>
+        public int ClampedQuantityPercent => Math.Min(300, Math.Max(10, QuantityIncomePercent));
+
+        /// <summary>BATCH-076: 有效经验收益百分比（[10, 300] 钳制后）。</summary>
+        public int ClampedExperiencePercent => Math.Min(300, Math.Max(10, ExperienceIncomePercent));
+
         /// <summary>自定义钓鱼称号（BATCH-073，2026-08-18 用户确认）：空字符串=继续使用 i18n 称号；
         /// 非空时替代所有玩家可见的鱼职阶称号显示。该字段只允许手动编辑 config.json，不注册到 GMCM。</summary>
         public string CustomFishingTitle { get; set; } = string.Empty;

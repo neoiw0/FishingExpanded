@@ -319,6 +319,53 @@ namespace FishingExpanded.Services
             }
         }
 
+        /// <summary>BATCH-078: 训练鱼竿声誉封顶提示——本次成功若不加训练竿限制将升过 4 级时，
+        /// 替代当次的"下一次你将挑战XX称号"建议行。文案池 30 条随机，部分含 {{fishName}} 鱼名令牌。</summary>
+        public static void ShowTrainingCapNotification(string fishId)
+        {
+            try
+            {
+                string fishName = GetFishDisplayName(fishId);
+                int index = Game1.random.Next(1, 31);
+                string key = $"hud.trainingCap.{index}";
+                var translation = ModEntry.ModHelper.Translation.Get(key, new { fishName });
+                string message = translation.HasValue()
+                    ? translation.ToString()
+                    : "更强的对手不接受训练鱼竿的挑战。";
+
+                EnqueueMessage(Game1.player, CreateMessage(message, HUDMessage.error_type));
+                FishingLog.Log(
+                    $"[HUDNotifier] 训练鱼竿封顶提示 | 鱼: {fishName} ({fishId}) | 文案: #{index}",
+                    StardewModdingAPI.LogLevel.Debug);
+            }
+            catch (Exception ex)
+            {
+                FishingLog.Log($"训练鱼竿封顶提示失败: {ex}", StardewModdingAPI.LogLevel.Error);
+            }
+        }
+
+        /// <summary>BATCH-078: 无小游戏物品升级掷签未中的轻量提示——20% 概率弹出；文案池 20 条，
+        /// 全部为不含鱼类量词的通用表述（垃圾/藻类/蟹笼收获均适用）；键缺失时静默跳过。</summary>
+        public static void ShowTrashMissHint()
+        {
+            try
+            {
+                int index = Game1.random.Next(1, 21);
+                string key = $"hud.trashMiss.{index}";
+                var translation = ModEntry.ModHelper.Translation.Get(key);
+                if (!translation.HasValue())
+                    return;
+                EnqueueMessage(Game1.player, CreateMessage(translation.ToString(), HUDMessage.newQuest_type));
+                FishingLog.Log(
+                    $"[HUDNotifier] 无小游戏物品未升级轻提示 | 文案: #{index}",
+                    StardewModdingAPI.LogLevel.Debug);
+            }
+            catch (Exception ex)
+            {
+                FishingLog.Log($"无小游戏物品未升级轻提示失败: {ex}", StardewModdingAPI.LogLevel.Error);
+            }
+        }
+
         /// <summary>获取鱼的显示名称（带空检查）</summary>
         private static string GetFishDisplayName(string fishId)
         {

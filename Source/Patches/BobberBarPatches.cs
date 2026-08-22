@@ -549,8 +549,11 @@ namespace FishingExpanded.Patches
 
                 // 2. fishSize（BATCH-038：等级尺寸倍率移到最终结算边界 pullFishFromWater 统一应用；
                 // 构造边界保持原生值，原生“脱杆缩水”在难度等级>0 时由 Update_Prefix 禁用）
-                int quantityMultiplier = DifficultyCalculator.GetQuantityMultiplier(difficultyLevel);
-                instanceData.QuantityMultiplier = quantityMultiplier;
+                // BATCH-079 静态复核：BATCH-077 后实际发放数量在结算边界按"线性期望+余量概率进位"掷签，
+                // 本处若调用随机版会得到与实发 ±1 漂移的日志值；构造日志/快照改用确定性期望。
+                // （InstanceData.QuantityMultiplier 全仓无读者，仅快照留存。）
+                double quantityMultiplierExpectation = DifficultyCalculator.GetQuantityMultiplierExact(difficultyLevel);
+                instanceData.QuantityMultiplier = (int)Math.Round(quantityMultiplierExpectation);
                 int nativeFishSize = ___fishSize;
 
                 // 3. 调整 fishQuality
@@ -585,7 +588,7 @@ namespace FishingExpanded.Patches
                     $"[BobberBar] 钓鱼小游戏开始 | 实例: {__instance.GetHashCode()} | 鱼ID: {normalizedFishId} | " +
                     $"难度等级: {difficultyLevel} | " +
                     $"原始difficulty: {originalDifficulty:F1} | 调整后: {___difficulty:F1} (×{difficultyMultiplier:F2}) | " +
-                    $"数量倍数: {quantityMultiplier} | fishSize(原生): {nativeFishSize} (结算×{DifficultyCalculator.GetFishSizeMultiplier(difficultyLevel):F2}) | 品质: {___fishQuality} | " +
+                    $"数量倍数期望: {quantityMultiplierExpectation:F1} | fishSize(原生): {nativeFishSize} (结算×{DifficultyCalculator.GetFishSizeMultiplier(difficultyLevel):F2}) | 品质: {___fishQuality} | " +
                     $"加速增幅档: {GetAccelerationTier(difficultyLevel):P0} | 加速度增幅: ×{accelerationBoost:F2} | 跳鱼间隔: {instanceData.JumpIntervalSeconds:F0}s | 鱼竿熟练度α: {instanceData.Alpha:P0} | " +
                     $"力竭: {instanceData.AdjustedDifficulty:F0}{(instanceData.AdjustedDifficulty >= 100f ? "(参与)" : "(不参与)")} | 挑战鱼饵: {instanceData.HasChallengeBait}" +
                     $" | barX: {___xPositionOnScreen} | barY: {___yPositionOnScreen} | viewportW: {Game1.viewport.Width}" +

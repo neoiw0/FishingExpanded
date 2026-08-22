@@ -28,13 +28,105 @@ namespace FishingExpanded.Utils
             return Lerp(1f, 1.2f, level / 4f);
         }
 
-        /// <summary>计算获得数量倍数（BATCH-062：难度等级×1，0/负等级=1，100 级=100；覆盖 BATCH-060 的 round(level×0.5)）</summary>
+        /// <summary>BATCH-077: 数量倍数锚点阵列（2026-08-22 用户逐点确认，覆盖未部署的 BATCH-076 阵列）——
+        /// 难度等级 → 条数期望锚点；低于首锚点/高于末锚点钳制到端点；
+        /// 锚点之间按线性期望概率过渡（见 GetQuantityMultiplier）。</summary>
+        public static readonly (int Level, int Multiplier)[] QuantityAnchors =
+        {
+            (-10, 1), (0, 1), (8, 2), (16, 4), (32, 8), (56, 24), (100, 100)
+        };
+
+        /// <summary>BATCH-078: 无小游戏物品（非鱼类：垃圾/藻类等钓竿直取物与蟹笼收获，IsNonFishItem 口径）
+        /// 专属数量锚点阵列：0级=1个、8级=8个（非鱼类上限即 8 级）；低于首锚点钳到首值；
+        /// 区间内与主曲线同方式"线性期望+余量概率进位"。样例：4级期望 4.5→45% 概率 5 个。</summary>
+        public static readonly (int Level, int Multiplier)[] NoMinigameQuantityAnchors =
+        {
+            (0, 1), (8, 8)
+        };
+
+        /// <summary>BATCH-077: 数量倍数精确期望值（确定性，供自测与展示）：
+        /// 锚点间线性插值，区间外钳制到最近端点；锚点处恒等于锚点值。
+        /// 样例：4级=1.5、12级=3.0、20级=5.0、50级=20.0、78级=62.0、90级≈82.73。</summary>
         /// <param name="level">难度等级 [-10, 100]</param>
-        /// <returns>数量倍数（0 级及以下返回 1）</returns>
+        public static double GetQuantityMultiplierExact(int level)
+        {
+            return InterpolateAnchors(QuantityAnchors, level);
+        }
+
+        /// <summary>BATCH-077: 计算获得数量倍数——按精确期望值概率过渡取整：
+        /// 仅对不足 1 条、会被约掉的余量部分按概率进位（小数部分 f = 进位概率，floor 档概率 = 1−f），
+        /// 每次结算掷一次（Game1.random）；锚点与整数期望等级恒定不随机；
+        /// 绝不在区间两端之间任意随机取值（用户澄清语义，2026-08-22）。
+        /// 用户示例：0级=1条、8级=2条之间，4级期望 1.5 → 约 50% 概率 2 条；
+        /// 2级期望 1.25 → 25% 概率 2 条；78级期望恰 62 → 恒为 62 条。</summary>
+        /// <param name="level">难度等级 [-10, 100]</param>
+        /// <returns>本次结算的数量倍数（最低 1）</returns>
         public static int GetQuantityMultiplier(int level)
         {
-            if (level <= 0) return 1;
-            return level;
+            return RollByFraction(GetQuantityMultiplierExact(level));
+        }
+
+        /// <summary>BATCH-078: 无小游戏物品数量倍数精确期望值（确定性）：0级=1个、8级=8个线性；
+        /// 负级钳制到首锚点（=1 个）。供自测与展示。</summary>
+        public static double GetNoMinigameQuantityMultiplierExact(int level)
+        {
+            return InterpolateAnchors(NoMinigameQuantityAnchors, level);
+        }
+
+        /// <summary>BATCH-078: 无小游戏物品数量倍数——与主曲线同方式：仅对不足 1 个的余量
+        /// 按概率进位（每次收获掷一次）；锚点与整数期望恒定。</summary>
+        public static int GetNoMinigameQuantityMultiplier(int level)
+        {
+            return RollByFraction(GetNoMinigameQuantityMultiplierExact(level));
+        }
+
+        /// <summary>BATCH-077/078: 锚点阵列线性插值（确定性；区间外钳制到最近端点）。</summary>
+        private static double InterpolateAnchors((int Level, int Multiplier)[] anchors, int level)
+        {
+            if (level <= anchors[0].Level)
+                return anchors[0].Multiplier;
+            for (int i = 1; i < anchors.Length; i++)
+            {
+                if (level > anchors[i].Level)
+                    continue;
+                double t = (double)(level - anchors[i - 1].Level) / (anchors[i].Level - anchors[i - 1].Level);
+                return anchors[i - 1].Multiplier +
+                    (anchors[i].Multiplier - anchors[i - 1].Multiplier) * t;
+            }
+            return anchors[anchors.Length - 1].Multiplier;
+        }
+
+        /// <summary>BATCH-077/078: 按精确期望值概率取整——小数部分 f = 进位概率（floor 档概率 = 1−f），
+        /// 每次结算/收获掷一次（Game1.random）；整数期望恒定不随机；最低 1。</summary>
+        private static int RollByFraction(double exact)
+        {
+            double floorValue = Math.Floor(exact);
+            int baseValue = (int)Math.Max(1, floorValue);
+            double fraction = exact - floorValue;
+            if (fraction <= 0d)
+                return baseValue;
+            return Game1.random.NextDouble() < fraction ? baseValue + 1 : baseValue;
+        }
+
+        /// <summary>BATCH-076: 按实际锚点阵列生成设置文案片段（zh 示例 "-10级=1条，0级=1条，…"）。
+        /// itemFormat 含 {0}=等级、{1}=倍数；separator 为条目分隔符；供 GMCM 提示动态拼装，
+        /// 保证"按实际锚点为准"——修改 QuantityAnchors 即同步改变设置显示。</summary>
+        public static string FormatQuantityAnchors(string itemFormat, string separator)
+        {
+            return FormatQuantityAnchors(QuantityAnchors, itemFormat, separator);
+        }
+
+        /// <summary>BATCH-078: 按指定锚点阵列生成设置文案片段（供无小游戏曲线等复用）。</summary>
+        public static string FormatQuantityAnchors((int Level, int Multiplier)[] anchors, string itemFormat, string separator)
+        {
+            System.Text.StringBuilder builder = new System.Text.StringBuilder();
+            for (int i = 0; i < anchors.Length; i++)
+            {
+                if (i > 0)
+                    builder.Append(separator);
+                builder.Append(string.Format(itemFormat, anchors[i].Level, anchors[i].Multiplier));
+            }
+            return builder.ToString();
         }
 
         /// <summary>BATCH-067: 固定钓鱼等级系数——难度等级增长与玩家的固定（基础）钓鱼等级挂钩：

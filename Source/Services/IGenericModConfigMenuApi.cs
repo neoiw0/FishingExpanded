@@ -13,5 +13,8 @@ namespace FishingExpanded.Services
         void AddParagraph(IManifest mod, Func<string> text);
 
         void AddBoolOption(IManifest mod, Func<bool> getValue, Action<bool> setValue, Func<string> name, Func<string> tooltip = null, string fieldId = null);
+
+        /// <summary>BATCH-076: 与已安装 GMCM 1.16.0 的 AddNumberOption 签名一致。</summary>
+        void AddNumberOption(IManifest mod, Func<float> getValue, Action<float> setValue, Func<string> name, Func<string> tooltip = null, float? min = null, float? max = null, float? interval = null, Func<float, string> format = null);
     }
 }

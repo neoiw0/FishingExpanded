@@ -1,7 +1,7 @@
 # Fishing Expanded — Nexus Release Content (Bilingual)
 
 > Mod ID: 50595  
-> Version: 0.5.11  
+> Version: 1.0.0  
 > Author: neoiw  
 > All release-facing content is bilingual: full English first, then full Chinese.  
 > 所有发布相关内容均为中英双语：先英文全文，后中文全文。
@@ -16,7 +16,7 @@
 |---|---|
 | Mod Name | Fishing Expanded |
 | Mod ID | 50595 |
-| Version | 0.5.11 |
+| Version | 1.0.0 |
 | Game | Stardew Valley |
 | Category (suggested) | Gameplay Tweaks / Fishing |
 | Summary | Make every fish your own story: fish reputation, rank titles, crowns, giant fish and challenge bait—built to feel like vanilla Stardew. |
@@ -161,7 +161,7 @@ Quality of Life
 |---|---|
 | Mod 名称 | Fishing Expanded |
 | Mod ID | 50595 |
-| 版本 | 0.5.11 |
+| 版本 | 1.0.0 |
 | 游戏 | 星露谷物语 |
 | 分类（建议） | Gameplay Tweaks / Fishing |
 | 摘要 | 让每条鱼都有自己的成长故事：鱼群声誉、头衔、皇冠、巨型鱼、挑战鱼饵，一切像原版亲儿子一样自然。 |

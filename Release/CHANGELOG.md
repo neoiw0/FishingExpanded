@@ -6,6 +6,22 @@
 ---
 
 ## ENGLISH
+## 1.0.0
+
+> First stable release. Gameplay details follow `GAME-DESIGN.md` / `Wiki-for-Developers.md`; this list covers player-visible changes.
+
+### New Content / Balance Rework
+
+- **New quantity curve with a slower early game**: fish per catch now follows player-tuned anchors — reputation -10/0 = 1, 8 = 2, 16 = 4, 32 = 8, 56 = 24, 100 = 100 (replaces the old level × 1 line). Between anchors only the fractional remainder is settled probabilistically on each catch (level 4 expectation 1.5 ≈ a 50% chance of 2 fish); integer-expectation levels are constant, never random.
+- **Income scaling sliders (GMCM ×3)**: Quantity income / XP income / No-minigame quantity income. Default 100%, adjustable 10%–300%. Quantity applies after every bonus and discount; XP after base recalculation and the level multiplier; the daily-limit zero catch still takes priority. Quantity sliders show the live anchor list in their tooltip.
+- **Training Rod rebalance**: while holding the Training Rod, real-fish reputation above 4 stops growing entirely for that catch (no save writes at all), and a dedicated hint replaces the rank-up tip.
+- **Trash / algae / crab pots rework**: these no-minigame items use their own curve (0 = 1, 8 = 8) and each haul requests +1 level with only a 5% chance to be granted; a missed roll can still pop a light consolation hint (20%).
+
+### Compatibility
+
+- **Walk of Life coexistence**: when DaLion.Professions is installed, FishingExpanded takes over minigame balance — WoL fishing-profession perks (bigger green bar from Deluxe Bait, catch-bar slowdown, instant full-pond catches) no longer alter the battle. A one-time notice appears on save load; everything else from both mods keeps working. Without WoL installed this layer is fully dormant (zero behavioral difference).
+
+
 ## 0.5.11
 
 > Current release candidate. Gameplay details follow `GAME-DESIGN.md` / `Wiki-for-Developers.md`; this list covers player-visible changes.
@@ -61,6 +77,22 @@
 ---
 
 ## 中文
+## 1.0.0
+
+> 首个稳定版本。机制以 `GAME-DESIGN.md` / `Wiki-for-Developers.md` 为准，这里只列玩家可感知的主要变化。
+
+### 新内容 / 平衡重构
+
+- **数量曲线前期放缓**：每次钓获条数改为玩家逐点定稿的锚点曲线——声誉 -10/0 = 1 条、8 = 2、16 = 4、32 = 8、56 = 24、100 = 100（替代旧"等级×1"直线）。锚点之间只对"不足 1 条被约掉的余量"按概率进位（4 级期望 1.5 ≈ 一半概率 2 条）；整数期望等级恒定不随机。
+- **收益缩放（GMCM 三条滑杆）**：条数收益 / 经验收益 / 无小游戏物品条数收益，默认 100%，可调 10%~300%。条数作用于全部加成与折扣之后；经验作用于基数重算与倍率之后；每日限额清零仍然最优先。条数类滑杆提示会显示当前实际锚点阵列。
+- **训练鱼竿再平衡**：手持训练鱼竿时，真鱼声誉高于 4 的部分本次收获完全不写入存档，并用专属提示替代当次的升级建议行。
+- **垃圾/藻类/蟹笼重构**：这类无小游戏物品走专属数量曲线（0 级 = 1 个、8 级 = 8 个）；每次收获固定请求 +1 级但只有 **5%** 概率真正授予，未中有 20% 概率弹出一条轻量安慰提示。
+
+### 兼容性
+
+- **Walk of Life 同装兼容**：检测到 DaLion.Professions 时，FishingExpanded 接管钓鱼小游戏平衡——WoL 钓鱼职业的效果（豪华鱼饵加大绿条、蓄力槽减速、满鱼塘秒钓）不再改变战斗。进档时提示一次；双方其余内容照常可用。未装 WoL 则此层完全休眠（零行为差异）。
+
+
 ## 0.5.11
 
 > 当前发布候选版本。机制以 `GAME-DESIGN.md` / `Wiki-for-Developers.md` 为准，这里只列玩家可感知的主要变化。

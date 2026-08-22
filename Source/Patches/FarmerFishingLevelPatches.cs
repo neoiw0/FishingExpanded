@@ -10,9 +10,13 @@ namespace FishingExpanded.Patches
     [HarmonyPatch(typeof(Farmer))]
     internal class FarmerFishingLevelPatches
     {
-        /// <summary>在原生钓鱼经验写入前应用当前难度等级的经验倍率。</summary>
+        /// <summary>在原生钓鱼经验写入前应用当前难度等级的经验倍率。
+        /// BATCH-079：显式优先级 810，高于 Walk of Life 的 gainExperience 替换前缀(800)——
+        /// 本前缀必须先完成限额清零(BATCH-061)/基数重算(BATCH-068)/倍率裁决，
+        /// WoL 再把调整后的 howMuch 记入其技能账本；未装 WoL 时排序无竞争者，行为与历史版本一致。</summary>
         [HarmonyPatch(nameof(Farmer.gainExperience))]
         [HarmonyPrefix]
+        [HarmonyPriority(810)]
         public static void GainExperience_Prefix(
             Farmer __instance,
             int which,
@@ -59,15 +63,27 @@ namespace FishingExpanded.Patches
                     howMuch = cappedExperience;
                 }
 
+                int originalExperience = howMuch;
+                long adjustedExperience = originalExperience;
+
                 int multiplier = pendingFish.ExperienceMultiplier;
-                if (multiplier <= 1)
+                if (multiplier > 1)
+                    adjustedExperience *= multiplier;
+
+                // BATCH-076: 经验收益缩放（用户确认：默认 100%，允许 10%~300%，config 钳制后生效）——
+                // 在 BATCH-068 基数重算与难度等级倍数之后整体缩放，向上取整；
+                // 每日限额置零路径已在上方 return（保持 0）；节日原生模式已在最前 return。
+                int experiencePercent = ModEntry.Config?.ClampedExperiencePercent ?? 100;
+                if (experiencePercent != 100 && adjustedExperience > 0)
+                    adjustedExperience = Math.Max(1, (long)Math.Ceiling(adjustedExperience * (experiencePercent / 100.0)));
+
+                if (adjustedExperience == originalExperience)
                     return;
 
-                long adjustedExperience = (long)howMuch * multiplier;
                 howMuch = (int)Math.Min(int.MaxValue, adjustedExperience);
                 FishingLog.Log(
-                    $"[FarmerFishingExperience] 经验倍率 | 难度等级: {pendingFish.DifficultyLevel} | " +
-                    $"倍率: ×{multiplier} | 经验: {adjustedExperience / multiplier} → {howMuch}",
+                    $"[FarmerFishingExperience] 经验调整 | 难度等级: {pendingFish.DifficultyLevel} | " +
+                    $"倍率: ×{multiplier} | 收益: {experiencePercent}% | 经验: {originalExperience} → {howMuch}",
                     LogLevel.Debug);
             }
             catch (Exception ex)

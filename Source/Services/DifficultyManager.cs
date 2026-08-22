@@ -103,6 +103,29 @@ namespace FishingExpanded.Services
             _dailyLimitNotifiedByPlayer.Clear();
         }
 
+        /// <summary>BATCH-078: 训练鱼竿有效声誉上限（临时有效值；不改写存档中超过上限的声誉）。</summary>
+        public const int TrainingRodLevelCap = 4;
+
+        /// <summary>BATCH-078: 无小游戏物品（非鱼类）每次收获的升级概率（原 100% 固定 +1 级改为概率制）。</summary>
+        public const double NonFishLevelUpChance = 0.05;
+
+        /// <summary>BATCH-078: 无小游戏物品升级掷签未中时，弹出轻量提示的概率（文案池 20 条通用文案）。</summary>
+        public const double NonFishLevelMissHintChance = 0.20;
+
+        /// <summary>BATCH-078: 训练鱼竿下本次成功的等级增益是否会被封顶拦截
+        /// （真实声誉 >4 时恒为 true；否则当"不加训练竿限制会升过 4"时为 true）。供调用方替换建议行提示。</summary>
+        public static bool WouldTrainingCapTrigger(int realOldLevel, int requestedGain, bool isNonFishItem)
+        {
+            if (isNonFishItem || requestedGain <= 0)
+                return false;
+            int effectiveOld = Math.Min(realOldLevel, TrainingRodLevelCap);
+            if (realOldLevel > TrainingRodLevelCap)
+                return true;
+            int uncappedAllowed = Math.Min(requestedGain, Math.Max(0,
+                Math.Min(DifficultyCalculator.GetNextRankCeiling(realOldLevel), MaxDifficultyLevel) - realOldLevel));
+            return effectiveOld + uncappedAllowed > TrainingRodLevelCap;
+        }
+
         /// <summary>BATCH-061: 是否为非鱼类（物品类别 ≠ 鱼类别 -4；垃圾/藻类等；GAME-DESIGN §6.2）。
         /// BATCH-065: 蟹笼鱼（Data/Fish 带 trap 标签、Category=-4）按水藻类非鱼规则一并归入（上限 8、8 级星星、
         /// HUD 封顶文案、图鉴"无手感增强"全部自动生效）。</summary>
@@ -233,8 +256,12 @@ namespace FishingExpanded.Services
             return Math.Max(MinDifficultyLevel, Math.Min(maxLevel, stats.DifficultyLevel));
         }
 
-        /// <summary>BATCH-010: 记录指定玩家钓鱼成功（支持可变等级增长）</summary>
-        public static int RecordSuccess(string fishId, int levelGain, Farmer player)
+        /// <summary>BATCH-010: 记录指定玩家钓鱼成功（支持可变等级增长）。
+        /// BATCH-078: grantLevel=false 时仍记一次成功事件（连续失败清零、星星检查照常），但等级不增长——
+        /// 供无小游戏物品 5% 升级掷签未中路径使用，保持"成功统计唯一写入者"在本管理器。
+        /// 注意 SuccessCount 沿用 BATCH-010"累计增长量"口径（+=allowedGain）：未中路径 allowedGain=0，
+        /// 故计数不增加；这是既有口径而非本批引入的行为。</summary>
+        public static int RecordSuccess(string fishId, int levelGain, Farmer player, bool grantLevel = true)
         {
             FishDifficultyData data = GetData(player);
             if (data == null)
@@ -264,6 +291,9 @@ namespace FishingExpanded.Services
                 allowedGain = Math.Min(allowedGain, Math.Max(0, 89 - oldLevel));
             else
                 allowedGain = Math.Min(allowedGain, 6);
+            // BATCH-078: 掷签未中路径——照常记成功但不授予等级。
+            if (!grantLevel)
+                allowedGain = 0;
             stats.SuccessCount = SaturatingAdd(stats.SuccessCount, allowedGain); // BATCH-010: 使用可变增长
             stats.ConsecutiveFailCount = 0; // BATCH-029: 成功清零连续失败计数
             int newLevel = GetDifficultyLevel(normalizedFishId, player);

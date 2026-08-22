@@ -43,6 +43,10 @@ namespace FishingExpanded.Patches
             public bool AllowAdditionalCreateFish { get; set; }
             public bool HarvestLimited { get; set; } // BATCH-061: 本次收获超过每日限额（数量已清零，经验由 gainExperience 前缀读取）
 
+            // BATCH-078: 本次捕获为无小游戏物品（非鱼类，走专属数量曲线与 5% 升级掷签）；训练鱼竿生效标志（有效声誉≤4）。
+            public bool IsNonFishCatch { get; set; }
+            public bool TrainingRodActive { get; set; }
+
             // BATCH-068: 经验基数补偿所需事实——原生难度（构造快照，未乘难度倍数）、实际传入难度
             // （负数等级=调整后；力竭后=有效难度）、以及重算原生经验所需的品质/宝箱/完美/Boss 标志。
             public float NativeDifficulty { get; set; }
@@ -388,8 +392,19 @@ namespace FishingExpanded.Patches
                     return;
                 }
 
+                // BATCH-078: 无小游戏物品（非鱼类）走专属数量锚点曲线；训练鱼竿下真鱼有效声誉上限 4——
+                // 在此源头钳制，数量/经验倍数、尺寸、皇冠与巨型鱼门槛等全部下游自动按 ≤4 生效；存档真实声誉不改动。
+                bool isNonFishCatch = DifficultyManager.IsNonFishItem(normalizedFishId);
+                // BATCH-078: 训练鱼竿判定与原生同口径（_analysis\festival-tmp\StardewValley.GameLocation.decompiled.cs:14053
+                // 原生即按 QualifiedItemId=="(T)TrainingRod"；1.6 工具数据驱动，无 TrainingRod 类型）。
+                bool trainingRodActive = owner.CurrentTool != null &&
+                    owner.CurrentTool.QualifiedItemId == "(T)TrainingRod";
                 int difficultyLevel = DifficultyManager.GetDifficultyLevel(normalizedFishId, owner);
-                int quantityMultiplier = DifficultyCalculator.GetQuantityMultiplier(difficultyLevel);
+                if (trainingRodActive && !isNonFishCatch && difficultyLevel > DifficultyManager.TrainingRodLevelCap)
+                    difficultyLevel = DifficultyManager.TrainingRodLevelCap;
+                int quantityMultiplier = isNonFishCatch
+                    ? DifficultyCalculator.GetNoMinigameQuantityMultiplier(difficultyLevel)
+                    : DifficultyCalculator.GetQuantityMultiplier(difficultyLevel);
 
                 // BATCH-010: 获取脱杆次数
                 int missCount = 0;
@@ -445,7 +460,9 @@ namespace FishingExpanded.Patches
                     FishQuality = fishQuality,
                     TreasureCaught = treasureCaught,
                     WasPerfect = wasPerfect,
-                    IsBossFish = isBossFish
+                    IsBossFish = isBossFish,
+                    IsNonFishCatch = isNonFishCatch,
+                    TrainingRodActive = trainingRodActive
                 };
 
                 FishingLog.Log(
@@ -489,8 +506,11 @@ namespace FishingExpanded.Patches
                 if (!isFinalFish)
                     return;
 
+                // BATCH-076: 条数收益百分比（config 钳制后，默认 100）。
+                int incomePercent = ModEntry.Config?.ClampedQuantityPercent ?? 100;
                 bool hasQuantityBonus = data.WildBaitBonus || data.ChallengeBonusActive ||
-                    data.ChallengeStarMultiplier < 1f || data.Multiplier > 1;
+                    data.ChallengeStarMultiplier < 1f || data.Multiplier > 1 ||
+                    ModEntry.Config?.ClampedQuantityPercent != 100;
                 if (hasQuantityBonus)
                 {
                     int nativeStack = Math.Max(1, __result.Stack);
@@ -511,11 +531,16 @@ namespace FishingExpanded.Patches
                     if (data.ChallengeStarMultiplier < 1f)
                         finalStack = Utils.DifficultyCalculator.ApplyChallengeStarMultiplier(finalStack, data.ChallengeStarMultiplier);
 
+                    // BATCH-076: 条数收益缩放最后应用——作用于含全部加成/折扣的最终条数；
+                    // 向上取整、至少 1 条；每日限额清零在其后仍优先（Stack=0）。
+                    if (incomePercent != 100)
+                        finalStack = Math.Max(1, (long)Math.Ceiling(finalStack * (incomePercent / 100.0)));
+
                     __result.Stack = (int)Math.Min(int.MaxValue, finalStack);
                     FishingLog.Log(
                         $"[FishingRod] 数量转化完成 | 玩家: {owner.UniqueMultiplayerID} | 鱼ID: {normalizedFishId} | " +
                         $"原生堆叠: {nativeStack} → 最终: {__result.Stack} | 万能加成: {data.WildBaitBonus} | " +
-                        $"挑战加成: {data.ChallengeBonusActive} | 等级倍数: ×{data.Multiplier}",
+                        $"挑战加成: {data.ChallengeBonusActive} | 等级倍数: ×{data.Multiplier} | 收益: {incomePercent}%",
                         LogLevel.Info);
                 }
 
@@ -809,9 +834,46 @@ namespace FishingExpanded.Patches
                 int baseFishingLevel = __instance.fishingLevel.Value;
                 int requestedGain = Utils.DifficultyCalculator.GetRequestedLevelGain(baseLevelGain, data.AdjustedDifficulty, baseFishingLevel);
 
-                int oldLevel = DifficultyManager.GetDifficultyLevel(fishId, __instance);
-                int actualLevelGain = DifficultyManager.RecordSuccess(fishId, requestedGain, __instance);
-                int newLevel = DifficultyManager.GetDifficultyLevel(fishId, __instance);
+                // BATCH-078: 三路分支——真鱼+训练竿（声誉有效值≤4，超限不写档只提示）/
+                // 无小游戏物品（固定 +1、仅 5% 授予）/ 常规（原逻辑不变）。
+                bool trainingRodFish = data.TrainingRodActive && !data.IsNonFishCatch;
+                int realOldLevel = DifficultyManager.GetDifficultyLevel(fishId, __instance);
+                bool cappedByTrainingRod = false;
+                bool grantLevel = true;
+                int appliedGain;
+
+                if (data.IsNonFishCatch)
+                {
+                    // 无小游戏物品：每次收获固定请求 +1 级，仅 NonFishLevelUpChance(5%) 概率授予；未中仍计一次成功。
+                    appliedGain = 1;
+                    int maxNonFishLevel = Utils.SpecialFishHelper.GetMaxLevelForNonFish();
+                    grantLevel = realOldLevel < maxNonFishLevel &&
+                        Game1.random.NextDouble() < DifficultyManager.NonFishLevelUpChance;
+                }
+                else if (trainingRodFish)
+                {
+                    cappedByTrainingRod = DifficultyManager.WouldTrainingCapTrigger(
+                        realOldLevel, requestedGain, isNonFishItem: false);
+                    int effectiveOld = Math.Min(realOldLevel, DifficultyManager.TrainingRodLevelCap);
+                    appliedGain = cappedByTrainingRod
+                        ? Math.Max(0, Math.Min(requestedGain, DifficultyManager.TrainingRodLevelCap - effectiveOld))
+                        : requestedGain;
+                }
+                else
+                {
+                    appliedGain = requestedGain;
+                }
+
+                // 显示与下游用有效旧等级（训练竿下 ≤4；星之果茶等里程碑同样按有效档判定）。
+                int oldLevel = trainingRodFish
+                    ? Math.Min(realOldLevel, DifficultyManager.TrainingRodLevelCap)
+                    : realOldLevel;
+                int actualLevelGain = trainingRodFish && realOldLevel > DifficultyManager.TrainingRodLevelCap
+                    ? 0 // 真实声誉已超 4：完全不写档（RecordSuccess 都不调），避免任何存档写入
+                    : DifficultyManager.RecordSuccess(fishId, appliedGain, __instance, grantLevel);
+                int newLevel = trainingRodFish
+                    ? Math.Min(DifficultyManager.GetDifficultyLevel(fishId, __instance), DifficultyManager.TrainingRodLevelCap)
+                    : DifficultyManager.GetDifficultyLevel(fishId, __instance);
 
                 // 高难度星标必须在成功钓起后才写入；鱼王没有待处理数据，不会进入这里。
                 DifficultyManager.RecordHighDifficulty(fishId, data.AdjustedDifficulty, __instance);
@@ -839,11 +901,22 @@ namespace FishingExpanded.Patches
                 FishingLog.Log(
                     $"[Farmer] 难度等级更新 | 鱼ID: {fishId} | " +
                     $"脱杆: {data.MissCount}次 | 基础增长: +{baseLevelGain} | 额外难度增益: +{(int)Math.Round(data.AdjustedDifficulty / 50f)} | " +
-                    $"钓鱼等级系数: ×{Utils.DifficultyCalculator.GetFishingLevelGainFactor(baseFishingLevel):F1} | 请求增长: +{requestedGain} | 实际增长: +{actualLevelGain} | {oldLevel} → {newLevel}",
+                    $"钓鱼等级系数: ×{Utils.DifficultyCalculator.GetFishingLevelGainFactor(baseFishingLevel):F1} | 请求增长: +{requestedGain} | 实际增长: +{actualLevelGain} | {oldLevel} → {newLevel} | " +
+                    $"训练竿封顶: {cappedByTrainingRod} | 非鱼掷签: {(data.IsNonFishCatch ? (grantLevel ? "命中" : "未中") : "-")}",
                     LogLevel.Info);
 
-                // BATCH-012/022: 显示成功HUD提示（封顶检测，传入旧等级）
-                HUDNotifier.ShowSuccessNotification(fishId, newLevel, oldLevel);
+                // BATCH-012/022/078: 显示成功HUD提示；训练鱼竿封顶时用专属 30 条随机文案替代本次建议行。
+                if (cappedByTrainingRod)
+                    HUDNotifier.ShowTrainingCapNotification(fishId);
+                else
+                    HUDNotifier.ShowSuccessNotification(fishId, newLevel, oldLevel);
+
+                // BATCH-078: 无小游戏物品掷签未中——20% 概率弹轻量提示（20 条通用文案，不含鱼类量词）。
+                if (data.IsNonFishCatch && !grantLevel &&
+                    Game1.random.NextDouble() < DifficultyManager.NonFishLevelMissHintChance)
+                {
+                    HUDNotifier.ShowTrashMissHint();
+                }
 
                 // BATCH-032: 星之果茶掉落（难度等级 ≥50 且概率命中；同一防重边界只发放一次；鱼王无待处理数据天然豁免）
                 if (oldLevel >= 50 && DifficultyCalculator.TryGetStarfruitTeaDrop(oldLevel))
