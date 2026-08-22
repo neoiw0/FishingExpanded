@@ -122,7 +122,7 @@ namespace FishingExpanded.Services
             }
             else
             {
-                // BATCH-030: 难度等级 <1（0 级和负数）的胜利也显示称号提示（弱称号“额...稍微强一点的个体”）；
+                // BATCH-030: 难度等级 <1（0 级和负数）的胜利也显示称号提示（弱称号“额……稍微强点的家伙”）；
                 // 取代 BATCH-022 的 ≤0 跳过逻辑。
                 string rankName = ModEntry.GetDisplayRankName(newLevel);
                 message = ModEntry.ModHelper.Translation.Get("hud.challenge.title",

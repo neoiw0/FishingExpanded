@@ -1,10 +1,10 @@
 Fishing Expanded 0.5.11 — Release Checksums / 发布校验和
 ==========================================================
-Release candidate rebuilt on 2026-08-22 (0.5.11: NPC personalized praise polish, giant fish manager updates, fish reputation wording across all player-facing text).
-发布候选构建于 2026-08-22（0.5.11：NPC 个性化赞叹完善、巨型鱼管理器更新、全部玩家可见文本统一为鱼群声誉口径）。
+Release candidate rebuilt on 2026-08-22 (0.5.11 final: rank title overhaul EN+CN, difficulty calculator tuning, HUD notifier update, fish reputation wording across all player-facing text, 959 bilingual flavor lines).
+发布候选构建于 2026-08-22（0.5.11 终版：中英称号体系调整、难度计算器调优、HUD 通知器更新、全部玩家可见文本统一为鱼群声誉口径、959 条双语文案）。
 
 SHA-256 (FishingExpanded-0.5.11.zip):
-CCD2705018FFE55E45029B4BFB5FC3203D861CD144BCF940D48E94FE431E61B3
+09295C2C8F0EC3617ACC117A11A09C83A75DE663B3374AA6C60E9B60CC89C0B1
 
 SHA-256 (FishingExpanded.dll):
-D6DB5196257640DB11D422EEBB6424EFFFE08203C1D862EB387D6345CA43E570
+B734BBF45BF2F39422285644B8C8534AC3454CC2D10CB6B305E8D7EF5B48142D

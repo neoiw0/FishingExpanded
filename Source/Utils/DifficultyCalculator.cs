@@ -293,7 +293,8 @@ namespace FishingExpanded.Utils
             return a + (b - a) * Math.Max(0f, Math.Min(1f, t));
         }
 
-        /// <summary>获取称号名称</summary>
+        /// <summary>获取称号名称。内部键名沿用历史命名：rank.lord/rank.duke/rank.divineking/rank.creator
+        /// 现分别显示男爵/公爵/众神王/祖龙王（2026-08 用户定稿改名），玩家可见文本以 i18n 为准。</summary>
         /// <param name="level">难度等级</param>
         /// <returns>I18n 键名</returns>
         public static string GetRankKey(int level)
@@ -301,14 +302,14 @@ namespace FishingExpanded.Utils
             if (level < 1) return "rank.weak";
             if (level <= 3) return "rank.elite";     // 精英 1-3
             if (level <= 6) return "rank.knight";    // 骑士 4-6
-            if (level <= 8) return "rank.lord";      // 领主 7-8
+            if (level <= 8) return "rank.lord";      // 男爵 7-8
             if (level <= 15) return "rank.count";    // 伯爵 9-15
-            if (level <= 22) return "rank.duke";     // 大公 16-22
+            if (level <= 22) return "rank.duke";     // 公爵 16-22
             if (level <= 33) return "rank.prince";   // 亲王 23-33
             if (level <= 45) return "rank.emperor";  // 帝王 34-45
             if (level <= 66) return "rank.godking";  // 神皇 46-66
-            if (level <= 88) return "rank.divineking"; // 神王 67-88
-            if (level <= 99) return "rank.creator";    // 创世神 89-99（BATCH-028）
+            if (level <= 88) return "rank.divineking"; // 众神王 67-88
+            if (level <= 99) return "rank.creator";    // 祖龙王 89-99（BATCH-028）
             return "rank.taiyi";                       // 太一 100（BATCH-038：原“混沌”改名，用户确认）
         }
 
@@ -319,15 +320,15 @@ namespace FishingExpanded.Utils
         {
             if (currentLevel < 1) return 3;   // 弱小 → 精英上限
             if (currentLevel <= 3) return 6;  // 精英 → 骑士上限
-            if (currentLevel <= 6) return 8;  // 骑士 → 领主上限
-            if (currentLevel <= 8) return 15; // 领主 → 伯爵上限
-            if (currentLevel <= 15) return 22;// 伯爵 → 大公上限
-            if (currentLevel <= 22) return 33;// 大公 → 亲王上限
+            if (currentLevel <= 6) return 8;  // 骑士 → 男爵上限
+            if (currentLevel <= 8) return 15; // 男爵 → 伯爵上限
+            if (currentLevel <= 15) return 22;// 伯爵 → 公爵上限
+            if (currentLevel <= 22) return 33;// 公爵 → 亲王上限
             if (currentLevel <= 33) return 45;// 亲王 → 帝王上限
             if (currentLevel <= 45) return 66;// 帝王 → 神皇上限
-            if (currentLevel <= 66) return 88;// 神皇 → 神王上限
-            if (currentLevel <= 88) return 99;// 神王(67-88) → 创世神上限（BATCH-028）
-            if (currentLevel <= 99) return 100;// 创世神(89-99) → 太一上限（BATCH-028）
+            if (currentLevel <= 66) return 88;// 神皇 → 众神王上限
+            if (currentLevel <= 88) return 99;// 众神王(67-88) → 祖龙王上限（BATCH-028）
+            if (currentLevel <= 99) return 100;// 祖龙王(89-99) → 太一上限（BATCH-028）
             return 100; // 太一(100) → 太一上限（BATCH-028）
         }
 
