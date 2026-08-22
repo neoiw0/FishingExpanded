@@ -124,9 +124,10 @@ Fishing Expanded 把钓鱼小游戏做成一段公平、耐玩、越钓越上头
   - 想用 Mod 规则冲高分，可以在 GMCM 里开启。
 - 可以开启 Mod 日志（遇到bug使用；默认关闭，警告和错误始终保留）。
 - 支持**重置全部挑战进度**：
-- 支持**自定义称号**：编辑 config.json 里的 `"CustomFishingTitle"`，把所有鱼的职阶称号换成你的一句话。
-  - 例：`"CustomFishingTitle": "湖畔传说"` → 从精英到隐藏头衔，全部显示为“湖畔传说”。
-  - 留空 `""` 则按内置阶梯正常显示。只影响显示，不影响难度与奖励（游戏关闭时编辑）。
+- 支持**逐职阶自定义全部 12 个称号**：编辑 config.json 的 `"CustomFishingTitles"`，键为职阶名（weak/elite/knight/lord/count/duke/prince/emperor/godking/divineking/creator/taiyi），只填想改的，留空保持内置。
+  - 例：`"CustomFishingTitles": { "elite": "钓鱼王牌", "count": "湖畔伯爵" }` → 1-3 级显示“钓鱼王牌”、9-15 级显示“湖畔伯爵”，其余照旧。
+- 也支持**一句话覆盖全部称号**：`"CustomFishingTitle": "湖畔传说"` → 从精英到隐藏头衔全部显示为“湖畔传说”（与上面同时填写时，逐职阶优先）。
+- 以上只影响显示，不影响难度与奖励；请在游戏关闭时编辑。
 
 ---
 

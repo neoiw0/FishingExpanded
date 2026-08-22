@@ -1023,14 +1023,36 @@ namespace FishingExpanded
             return crc ^ 0xFFFFFFFF;
         }
 
-        /// <summary>BATCH-073：集中取得显示用称号。设置了 CustomFishingTitle 时用它替代 i18n 称号；
-        /// 空/纯空白时回退到原 i18n 称号。内部 rankKey/等级逻辑不改变。</summary>
+        /// <summary>BATCH-073：集中取得显示用称号。2026-08-22 起三级优先：
+        /// ① CustomFishingTitles[职阶]（逐职阶，非空白生效）→ ② CustomFishingTitle（整体覆盖）→ ③ i18n 内置称号。
+        /// 空/纯空白视为未设置。内部 rankKey/等级逻辑不改变。</summary>
         public static string GetDisplayRankName(int level)
         {
+            string rankKey = Utils.DifficultyCalculator.GetRankKey(level); // 形如 "rank.count"
+
+            // ① 逐职阶自定义：键支持短名（count）或完整键名（rank.count），忽略大小写。
+            var titles = Config?.CustomFishingTitles;
+            if (titles != null && titles.Count > 0)
+            {
+                string shortKey = rankKey.StartsWith("rank.", StringComparison.Ordinal) ? rankKey.Substring(5) : rankKey;
+                foreach (var kv in titles)
+                {
+                    if ((!kv.Key.Equals(shortKey, StringComparison.OrdinalIgnoreCase)
+                            && !kv.Key.Equals(rankKey, StringComparison.OrdinalIgnoreCase))
+                        || string.IsNullOrWhiteSpace(kv.Value))
+                        continue;
+
+                    return kv.Value.Trim();
+                }
+            }
+
+            // ② 整体覆盖（BATCH-073 兼容）。
             string custom = Config?.CustomFishingTitle;
-            return string.IsNullOrWhiteSpace(custom)
-                ? ModHelper.Translation.Get(Utils.DifficultyCalculator.GetRankKey(level))
-                : custom.Trim();
+            if (!string.IsNullOrWhiteSpace(custom))
+                return custom.Trim();
+
+            // ③ 内置 i18n 称号。
+            return ModHelper.Translation.Get(rankKey);
         }
 
         /// <summary>BATCH-035 自动化验收：确定性自测（只读生产函数 + 本地种子随机，不改存档、不写玩家状态）。</summary>

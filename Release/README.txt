@@ -22,12 +22,33 @@ Uninstall:
 
 Advanced (optional, manual edit of config.json):
 After the first launch you will find `FishingExpanded/config.json` inside your Mods folder.
-- "CustomFishingTitle": replaces the rank title shown for ALL fish with one text of your choice.
-  * Default "" = built-in ladder (Elite, Knight, Baron, Count, Duke, Prince, Emperor...).
-    "CustomFishingTitle": ""
-  * Example: "CustomFishingTitle": "Legend of the Pond"
-    -> every fish is displayed as "Legend of the Pond" — from Elite all the way to the hidden top rank.
-  * Display only: difficulty and rewards are never affected. Edit while the game is closed.
+
+1) "CustomFishingTitles" — rename ANY (or all 12) rank titles, one per key.
+   Fill in only the ones you want to change; leave "" for the built-in title.
+
+     "CustomFishingTitles": {
+       "weak": "",            // <1
+       "elite": "Ace Angler",        // 1-3   was: Elite
+       "knight": "",            // 4-6   Knight
+       "lord": "",            // 7-8   Baron
+       "count": "",            // 9-15  Count
+       "duke": "",            // 16-22 Duke
+       "prince": "",            // 23-33 Prince
+       "emperor": "",            // 34-45 Emperor
+       "godking": "",            // 46-66 God King
+       "divineking": "",            // 67-88 King of Gods
+       "creator": "",            // 89-99 Primordial Dragon
+       "taiyi": ""             // 100   hidden top rank (discover it in game!)
+     }
+
+   The example above makes fish at levels 1-3 display as "Ace Angler"; every other
+   title stays built-in. Keys are case-insensitive; unknown keys are ignored.
+   Display only — difficulty and rewards are never affected. Edit while the game is closed.
+
+2) "CustomFishingTitle" (legacy, one line overrides ALL titles):
+     "CustomFishingTitle": "Legend of the Pond"
+   -> every fish shows "Legend of the Pond", from Elite to the hidden top rank.
+   Leave "" to keep the built-in ladder. If both are set, the per-rank list above wins.
 
 Source & License:
 - Open source under GPL-3.0. See LICENSE.
@@ -59,12 +80,32 @@ Nexus:
 
 高级设置（可选，手动编辑 config.json）：
 首次启动后，Mods 目录下会生成 `FishingExpanded/config.json`。
-- "CustomFishingTitle"：把所有鱼显示的职阶称号替换成你自己的一段文字。
-  * 默认 "" 使用内置称号阶梯：精英、骑士、男爵、伯爵、公爵、亲王、帝王……
-    "CustomFishingTitle": ""
-  * 例子："CustomFishingTitle": "湖畔传说"
-    → 无论钓到哪个职阶的鱼，称号都显示为“湖畔传说”——从精英一路到隐藏头衔。
-  * 只影响显示，难度与奖励完全不受影响。请在游戏关闭时编辑。
+
+1）"CustomFishingTitles"——12 个职阶称号想改哪个改哪个，一键一位。
+   只填你想改的，留空 "" 保持内置称号：
+
+     "CustomFishingTitles": {
+       "weak": "",              // <1
+       "elite": "钓鱼王牌",      // 1-3   原称号：精英
+       "knight": "",              // 4-6   骑士
+       "lord": "",              // 7-8   男爵
+       "count": "",              // 9-15  伯爵
+       "duke": "",              // 16-22 公爵
+       "prince": "",              // 23-33 亲王
+       "emperor": "",              // 34-45 帝王
+       "godking": "",              // 46-66 神皇
+       "divineking": "",              // 67-88 众神王
+       "creator": "",              // 89-99 祖龙王
+       "taiyi": ""             // 100   隐藏头衔（进游戏自己发现！）
+     }
+
+   上例效果：1-3 级的鱼显示“钓鱼王牌”，其余全部保持内置。键名忽略大小写，写错键名自动忽略。
+   只影响显示——难度与奖励完全不受影响。请在游戏关闭时编辑。
+
+2）"CustomFishingTitle"（旧字段，一句话覆盖全部称号）：
+     "CustomFishingTitle": "湖畔传说"
+   → 无论钓到哪个职阶的鱼，称号都显示为“湖畔传说”——从精英一路到隐藏头衔。
+   留空 "" 按内置阶梯显示。两个字段同时填写时，上面的逐职阶列表优先。
 
 源码与许可证：
 - 开源，GPL-3.0。见 LICENSE。
