@@ -28,30 +28,30 @@ After the first launch you will find `FishingExpanded/config.json` inside your M
    change and leave "" for the built-in title.
 
      "CustomFishingTitles": [
-       "",              //  0     below rank 1
-       "Small Fish",    //  1     levels 1-3   (default: Elite)
-       "Medium Fish",   //  2     levels 4-6   (Knight)
-       "",              //  3     levels 7-8   (Baron)
-       "Big Fish",      //  4     levels 9-15  (Count)
-       "",              //  5     levels 16-22 (Duke)
-       "Huge Fish",     //  6     levels 23-33 (Prince)
-       "Giant Fish",    //  7     levels 34-45 (Emperor)
-       "",              //  8     levels 46-66 (God King)
-       "Monster Fish",  //  9     levels 67-88 (King of Gods)
-       "Mythic Fish",   // 10     levels 89-99 (Primordial Dragon)
-       ""               // 11     level 100 — hidden top rank (discover it in game!)
+       "Minnow",          //  0     below rank 1
+       "Small Fish",      //  1     levels 1-3
+       "Medium Fish",     //  2     levels 4-6
+       "Big Fish",        //  3     levels 7-8
+       "Huge Fish",       //  4     levels 9-15
+       "Giant Fish",      //  5     levels 16-22
+       "Gigantic Fish",   //  6     levels 23-33
+       "Colossal Fish",   //  7     levels 34-45
+       "Monster Fish",    //  8     levels 46-66
+       "Leviathan",       //  9     levels 67-88
+       "Mythic Fish",     // 10     levels 89-99
+       "Legendary Fish"   // 11     level 100 - the hidden top rank (discover it in game!)
      ]
 
-   The example above shows how the list works: fish at levels 1-3 display as
-   "Small Fish", 4-6 as "Medium Fish", 9-15 as "Big Fish", 23-33 as "Huge Fish",
-   34-45 as "Giant Fish", 67-88 as "Monster Fish" and 89-99 as "Mythic Fish";
-   every empty slot keeps its built-in title. Keep the order exactly as shown —
-   extra or missing slots are safely ignored. Display only: difficulty and rewards
-   are never affected. Edit while the game is closed.
+   The example above fills all 12 slots so you can see how the ladder reads:
+   Minnow, Small Fish, Medium Fish, Big Fish, Huge Fish, Giant Fish, Gigantic Fish,
+   Colossal Fish, Monster Fish, Leviathan, Mythic Fish, Legendary Fish. You do not
+   have to fill them all - any slot left as "" keeps its built-in title. Keep the
+   order exactly as shown; extra or missing slots are safely ignored. Display only:
+   difficulty and rewards are never affected. Edit while the game is closed.
 
 2) "CustomFishingTitle" (legacy, one line overrides ALL titles):
-     "CustomFishingTitle": "Legend of the Pond"
-   -> every fish shows "Legend of the Pond", from Elite to the hidden top rank.
+     "CustomFishingTitle": "It's Just a Fish"
+   -> every fish shows "It's Just a Fish" at every level.
    Leave "" to keep the built-in ladder. If both are set, the list above wins.
 
 Source & License:
@@ -89,28 +89,28 @@ Nexus:
    12 个位置按从弱到强排列；只填你想改的，留空 "" 保持内置称号：
 
      "CustomFishingTitles": [
-       "",          //  0     不足 1 级
-       "小鱼",      //  1     1-3 级   （默认：精英）
-       "中鱼",      //  2     4-6 级   （骑士）
-       "",          //  3     7-8 级   （男爵）
-       "大鱼",      //  4     9-15 级  （伯爵）
-       "",          //  5     16-22 级 （公爵）
-       "特大鱼",    //  6     23-33 级 （亲王）
-       "巨鱼",      //  7     34-45 级 （帝王）
-       "",          //  8     46-66 级 （神皇）
-       "怪物鱼",    //  9     67-88 级 （众神王）
-       "传说之鱼",  // 10     89-99 级 （祖龙王）
-       ""           // 11     100 级——隐藏头衔（进游戏自己发现！）
+       "小虾米",      //  0     不足 1 级
+       "小鱼",        //  1     1-3 级
+       "中鱼",        //  2     4-6 级
+       "大鱼",        //  3     7-8 级
+       "特大鱼",      //  4     9-15 级
+       "巨鱼",        //  5     16-22 级
+       "巨型鱼",      //  6     23-33 级
+       "庞然巨鱼",    //  7     34-45 级
+       "怪物鱼",      //  8     46-66 级
+       "海怪鱼",      //  9     67-88 级
+       "神话之鱼",    // 10     89-99 级
+       "传说之鱼"     // 11     100 级——隐藏头衔（进游戏自己发现！）
      ]
 
-   上例演示列表用法：1-3 级显示“小鱼”、4-6 级“中鱼”、9-15 级“大鱼”、23-33 级“特大鱼”、
-   34-45 级“巨鱼”、67-88 级“怪物鱼”、89-99 级“传说之鱼”；空位全部保持内置称号。
-   请严格保持上面的顺序——多写或少写的位置会被安全忽略。只影响显示，难度与奖励完全不受影响。
-   请在游戏关闭时编辑。
+   上例把 12 格全部填满，方便看清整条阶梯：小虾米、小鱼、中鱼、大鱼、特大鱼、巨鱼、
+   巨型鱼、庞然巨鱼、怪物鱼、海怪鱼、神话之鱼、传说之鱼。不必全填——任何留空 "" 的格子
+   都保持内置称号。请严格保持上面的顺序，多写或少写的位置会被安全忽略。
+   只影响显示，难度与奖励完全不受影响。请在游戏关闭时编辑。
 
 2）"CustomFishingTitle"（旧字段，一句话覆盖全部称号）：
-     "CustomFishingTitle": "湖畔传说"
-   → 无论钓到哪个职阶的鱼，称号都显示为“湖畔传说”——从精英一路到隐藏头衔。
+     "CustomFishingTitle": "就是条鱼"
+   → 无论钓到哪个职阶的鱼，称号都显示为“就是条鱼”。
    留空 "" 按内置阶梯显示。两个字段同时填写时，上面的列表优先。
 
 源码与许可证：
