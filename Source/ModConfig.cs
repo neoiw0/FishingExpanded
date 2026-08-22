@@ -25,27 +25,14 @@ namespace FishingExpanded
         /// 非空时替代所有玩家可见的鱼职阶称号显示。该字段只允许手动编辑 config.json，不注册到 GMCM。</summary>
         public string CustomFishingTitle { get; set; } = string.Empty;
 
-        /// <summary>按职阶自定义全部 12 个称号（2026-08-22 用户要求）：键为职阶短名
-        /// weak/elite/knight/lord/count/duke/prince/emperor/godking/divineking/creator/taiyi
-        /// （键名沿用内部历史命名，当前显示依次为：额……稍微强点的家伙/精英/骑士/男爵/伯爵/公爵/亲王/帝王/神皇/众神王/祖龙王/隐藏头衔），
-        /// 值=替换文本，空/纯空白=该职阶继续使用内置称号。查找忽略大小写；未知键忽略。
-        /// 优先级：本字典（逐职阶）&gt; CustomFishingTitle（整体覆盖）&gt; i18n 内置。
+        /// <summary>按职阶自定义全部 12 个称号（2026-08-22 用户定稿为数组）：12 个元素按弱→强顺序对应
+        /// [0]weak(&lt;1) [1]elite(1-3) [2]knight(4-6) [3]lord(7-8,男爵) [4]count(9-15,伯爵) [5]duke(16-22,公爵)
+        /// [6]prince(23-33,亲王) [7]emperor(34-45,帝王) [8]godking(46-66,神皇) [9]divineking(67-88,众神王)
+        /// [10]creator(89-99,祖龙王) [11]taiyi(100,隐藏头衔)。
+        /// 元素为空/纯空白=该职阶继续使用内置称号；数组不足 12 位按缺省处理，超出部分忽略。
+        /// 优先级：本数组（逐职阶）&gt; CustomFishingTitle（整体覆盖）&gt; i18n 内置。
         /// 仅手动编辑 config.json，不注册 GMCM。</summary>
-        public Dictionary<string, string> CustomFishingTitles { get; set; } =
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["weak"] = "",
-                ["elite"] = "",
-                ["knight"] = "",
-                ["lord"] = "",
-                ["count"] = "",
-                ["duke"] = "",
-                ["prince"] = "",
-                ["emperor"] = "",
-                ["godking"] = "",
-                ["divineking"] = "",
-                ["creator"] = "",
-                ["taiyi"] = ""
-            };
+        public List<string> CustomFishingTitles { get; set; } =
+            new List<string> { "", "", "", "", "", "", "", "", "", "", "", "" };
     }
 }

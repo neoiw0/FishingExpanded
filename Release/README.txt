@@ -23,32 +23,36 @@ Uninstall:
 Advanced (optional, manual edit of config.json):
 After the first launch you will find `FishingExpanded/config.json` inside your Mods folder.
 
-1) "CustomFishingTitles" — rename ANY (or all 12) rank titles, one per key.
-   Fill in only the ones you want to change; leave "" for the built-in title.
+1) "CustomFishingTitles" — rename ANY (or all 12) rank titles with a simple list.
+   The 12 slots go from weakest to strongest; fill in only the ones you want to
+   change and leave "" for the built-in title.
 
-     "CustomFishingTitles": {
-       "weak": "",            // <1
-       "elite": "Ace Angler",        // 1-3   was: Elite
-       "knight": "",            // 4-6   Knight
-       "lord": "",            // 7-8   Baron
-       "count": "",            // 9-15  Count
-       "duke": "",            // 16-22 Duke
-       "prince": "",            // 23-33 Prince
-       "emperor": "",            // 34-45 Emperor
-       "godking": "",            // 46-66 God King
-       "divineking": "",            // 67-88 King of Gods
-       "creator": "",            // 89-99 Primordial Dragon
-       "taiyi": ""             // 100   hidden top rank (discover it in game!)
-     }
+     "CustomFishingTitles": [
+       "",              //  0     below rank 1
+       "Small Fish",    //  1     levels 1-3   (default: Elite)
+       "Medium Fish",   //  2     levels 4-6   (Knight)
+       "",              //  3     levels 7-8   (Baron)
+       "Big Fish",      //  4     levels 9-15  (Count)
+       "",              //  5     levels 16-22 (Duke)
+       "Huge Fish",     //  6     levels 23-33 (Prince)
+       "Giant Fish",    //  7     levels 34-45 (Emperor)
+       "",              //  8     levels 46-66 (God King)
+       "Monster Fish",  //  9     levels 67-88 (King of Gods)
+       "Mythic Fish",   // 10     levels 89-99 (Primordial Dragon)
+       ""               // 11     level 100 — hidden top rank (discover it in game!)
+     ]
 
-   The example above makes fish at levels 1-3 display as "Ace Angler"; every other
-   title stays built-in. Keys are case-insensitive; unknown keys are ignored.
-   Display only — difficulty and rewards are never affected. Edit while the game is closed.
+   The example above shows how the list works: fish at levels 1-3 display as
+   "Small Fish", 4-6 as "Medium Fish", 9-15 as "Big Fish", 23-33 as "Huge Fish",
+   34-45 as "Giant Fish", 67-88 as "Monster Fish" and 89-99 as "Mythic Fish";
+   every empty slot keeps its built-in title. Keep the order exactly as shown —
+   extra or missing slots are safely ignored. Display only: difficulty and rewards
+   are never affected. Edit while the game is closed.
 
 2) "CustomFishingTitle" (legacy, one line overrides ALL titles):
      "CustomFishingTitle": "Legend of the Pond"
    -> every fish shows "Legend of the Pond", from Elite to the hidden top rank.
-   Leave "" to keep the built-in ladder. If both are set, the per-rank list above wins.
+   Leave "" to keep the built-in ladder. If both are set, the list above wins.
 
 Source & License:
 - Open source under GPL-3.0. See LICENSE.
@@ -81,31 +85,33 @@ Nexus:
 高级设置（可选，手动编辑 config.json）：
 首次启动后，Mods 目录下会生成 `FishingExpanded/config.json`。
 
-1）"CustomFishingTitles"——12 个职阶称号想改哪个改哪个，一键一位。
-   只填你想改的，留空 "" 保持内置称号：
+1）"CustomFishingTitles"——12 个职阶称号想改哪个改哪个，就是一个简单列表。
+   12 个位置按从弱到强排列；只填你想改的，留空 "" 保持内置称号：
 
-     "CustomFishingTitles": {
-       "weak": "",              // <1
-       "elite": "钓鱼王牌",      // 1-3   原称号：精英
-       "knight": "",              // 4-6   骑士
-       "lord": "",              // 7-8   男爵
-       "count": "",              // 9-15  伯爵
-       "duke": "",              // 16-22 公爵
-       "prince": "",              // 23-33 亲王
-       "emperor": "",              // 34-45 帝王
-       "godking": "",              // 46-66 神皇
-       "divineking": "",              // 67-88 众神王
-       "creator": "",              // 89-99 祖龙王
-       "taiyi": ""             // 100   隐藏头衔（进游戏自己发现！）
-     }
+     "CustomFishingTitles": [
+       "",          //  0     不足 1 级
+       "小鱼",      //  1     1-3 级   （默认：精英）
+       "中鱼",      //  2     4-6 级   （骑士）
+       "",          //  3     7-8 级   （男爵）
+       "大鱼",      //  4     9-15 级  （伯爵）
+       "",          //  5     16-22 级 （公爵）
+       "特大鱼",    //  6     23-33 级 （亲王）
+       "巨鱼",      //  7     34-45 级 （帝王）
+       "",          //  8     46-66 级 （神皇）
+       "怪物鱼",    //  9     67-88 级 （众神王）
+       "传说之鱼",  // 10     89-99 级 （祖龙王）
+       ""           // 11     100 级——隐藏头衔（进游戏自己发现！）
+     ]
 
-   上例效果：1-3 级的鱼显示“钓鱼王牌”，其余全部保持内置。键名忽略大小写，写错键名自动忽略。
-   只影响显示——难度与奖励完全不受影响。请在游戏关闭时编辑。
+   上例演示列表用法：1-3 级显示“小鱼”、4-6 级“中鱼”、9-15 级“大鱼”、23-33 级“特大鱼”、
+   34-45 级“巨鱼”、67-88 级“怪物鱼”、89-99 级“传说之鱼”；空位全部保持内置称号。
+   请严格保持上面的顺序——多写或少写的位置会被安全忽略。只影响显示，难度与奖励完全不受影响。
+   请在游戏关闭时编辑。
 
 2）"CustomFishingTitle"（旧字段，一句话覆盖全部称号）：
      "CustomFishingTitle": "湖畔传说"
    → 无论钓到哪个职阶的鱼，称号都显示为“湖畔传说”——从精英一路到隐藏头衔。
-   留空 "" 按内置阶梯显示。两个字段同时填写时，上面的逐职阶列表优先。
+   留空 "" 按内置阶梯显示。两个字段同时填写时，上面的列表优先。
 
 源码与许可证：
 - 开源，GPL-3.0。见 LICENSE。

@@ -1,10 +1,10 @@
 Fishing Expanded 0.5.11 — Release Checksums / 发布校验和
 ==========================================================
-Release candidate rebuilt on 2026-08-22 17:20 (0.5.11 final: per-rank custom titles for all 12 ranks via config.json CustomFishingTitles, debug logging off by default with Warn/Error always visible, rank title overhaul EN+CN, difficulty calculator tuning, fish reputation wording across all player-facing text, 959 bilingual flavor lines).
-发布候选构建于 2026-08-22 17:20（0.5.11 终版：config.json CustomFishingTitles 支持 12 个职阶称号逐个自定义、调试日志默认关闭且警告/错误始终可见、中英称号体系调整、难度计算器调优、全部玩家可见文本统一为鱼群声誉口径、959 条双语文案）。
+Release candidate rebuilt on 2026-08-22 17:35 (0.5.11 final: per-rank custom titles as a simple 12-slot list ["","","",...] weakest-to-strongest, debug logging off by default with Warn/Error always visible, rank title overhaul EN+CN, difficulty calculator tuning, fish reputation wording across all player-facing text, 959 bilingual flavor lines).
+发布候选构建于 2026-08-22 17:35（0.5.11 终版：CustomFishingTitles 改为 12 格简单列表按弱到强逐职阶自定义称号、调试日志默认关闭且警告/错误始终可见、中英称号体系调整、难度计算器调优、全部玩家可见文本统一为鱼群声誉口径、959 条双语文案）。
 
 SHA-256 (FishingExpanded-0.5.11.zip):
-5A51B1FE36B979AF9A0B82D92A86DA2950F127573AAC7EB8621F2C148B531B58
+6D04CDD971DFA21FE061FCA6FB8DC34EFA773B2CD764C84ACA89BD88E22AB259
 
 SHA-256 (FishingExpanded.dll):
-145E0B795FCA9DD27009AFAE3418A4EA8195F1B16040292A595CFE600B0600ED
+7820F29D6A7021B5F464473EAEE9CDFE11A27370FF633350BC44B24C87625478

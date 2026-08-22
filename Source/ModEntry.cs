@@ -1024,26 +1024,19 @@ namespace FishingExpanded
         }
 
         /// <summary>BATCH-073：集中取得显示用称号。2026-08-22 起三级优先：
-        /// ① CustomFishingTitles[职阶]（逐职阶，非空白生效）→ ② CustomFishingTitle（整体覆盖）→ ③ i18n 内置称号。
-        /// 空/纯空白视为未设置。内部 rankKey/等级逻辑不改变。</summary>
+        /// ① CustomFishingTitles[序号]（数组按弱→强对应 12 个职阶，非空白生效）→ ② CustomFishingTitle（整体覆盖）→ ③ i18n 内置称号。
+        /// 空/纯空白视为未设置；数组越界/不足 12 位安全回退。内部 rankKey/等级逻辑不改变。</summary>
         public static string GetDisplayRankName(int level)
         {
             string rankKey = Utils.DifficultyCalculator.GetRankKey(level); // 形如 "rank.count"
 
-            // ① 逐职阶自定义：键支持短名（count）或完整键名（rank.count），忽略大小写。
+            // ① 逐职阶自定义：数组下标 = 职阶从弱到强的固定顺序（与 README 说明一致）。
+            int index = GetRankTitleIndex(rankKey);
             var titles = Config?.CustomFishingTitles;
-            if (titles != null && titles.Count > 0)
+            if (index >= 0 && titles != null && index < titles.Count
+                && !string.IsNullOrWhiteSpace(titles[index]))
             {
-                string shortKey = rankKey.StartsWith("rank.", StringComparison.Ordinal) ? rankKey.Substring(5) : rankKey;
-                foreach (var kv in titles)
-                {
-                    if ((!kv.Key.Equals(shortKey, StringComparison.OrdinalIgnoreCase)
-                            && !kv.Key.Equals(rankKey, StringComparison.OrdinalIgnoreCase))
-                        || string.IsNullOrWhiteSpace(kv.Value))
-                        continue;
-
-                    return kv.Value.Trim();
-                }
+                return titles[index].Trim();
             }
 
             // ② 整体覆盖（BATCH-073 兼容）。
@@ -1053,6 +1046,27 @@ namespace FishingExpanded
 
             // ③ 内置 i18n 称号。
             return ModHelper.Translation.Get(rankKey);
+        }
+
+        /// <summary>职阶键 → CustomFishingTitles 数组下标（弱→强 0~11）；未知键返回 -1。</summary>
+        private static int GetRankTitleIndex(string rankKey)
+        {
+            switch (rankKey)
+            {
+                case "rank.weak": return 0;         // <1
+                case "rank.elite": return 1;        // 1–3
+                case "rank.knight": return 2;       // 4–6
+                case "rank.lord": return 3;         // 7–8   男爵
+                case "rank.count": return 4;        // 9–15  伯爵
+                case "rank.duke": return 5;         // 16–22 公爵
+                case "rank.prince": return 6;       // 23–33 亲王
+                case "rank.emperor": return 7;      // 34–45 帝王
+                case "rank.godking": return 8;      // 46–66 神皇
+                case "rank.divineking": return 9;   // 67–88 众神王
+                case "rank.creator": return 10;     // 89–99 祖龙王
+                case "rank.taiyi": return 11;       // 100   隐藏头衔
+                default: return -1;
+            }
         }
 
         /// <summary>BATCH-035 自动化验收：确定性自测（只读生产函数 + 本地种子随机，不改存档、不写玩家状态）。</summary>
