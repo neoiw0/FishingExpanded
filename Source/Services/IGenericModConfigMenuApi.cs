@@ -14,7 +14,8 @@ namespace FishingExpanded.Services
 
         void AddBoolOption(IManifest mod, Func<bool> getValue, Action<bool> setValue, Func<string> name, Func<string> tooltip = null, string fieldId = null);
 
-        /// <summary>BATCH-076: 与已安装 GMCM 1.16.0 的 AddNumberOption 签名一致。</summary>
-        void AddNumberOption(IManifest mod, Func<float> getValue, Action<float> setValue, Func<string> name, Func<string> tooltip = null, float? min = null, float? max = null, float? interval = null, Func<float, string> format = null);
+        /// <summary>BATCH-076/080: 与已安装 GMCM 1.16.0 的 float 重载完全一致（含 BATCH-080 补上的
+        /// string fieldId 尾参——缺失会导致 SMAPI 接口映射失败、GetApi 抛异常、GMCM 菜单丢失本 Mod）。</summary>
+        void AddNumberOption(IManifest mod, Func<float> getValue, Action<float> setValue, Func<string> name, Func<string> tooltip = null, float? min = null, float? max = null, float? interval = null, Func<float, string> format = null, string fieldId = null);
     }
 }

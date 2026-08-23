@@ -207,15 +207,16 @@ namespace FishingExpanded
 
             // BATCH-076: 收益缩放（默认 100%，允许 10%~300%，钳制见 ModConfig.Clamped*Percent）。
             // 条数收益提示动态显示当前实际锚点阵列（按实际锚点为准）。
+            // BATCH-081: 提示经 WrapTooltip 自行折行（GMCM 对含 \n 文本不做自动折行）。
             api.AddNumberOption(
                 ModManifest,
                 () => Config.QuantityIncomePercent,
                 value => Config.QuantityIncomePercent = (int)Math.Round(value),
                 () => Helper.Translation.Get("config.quantityIncome.name"),
-                () => Helper.Translation.Get("config.quantityIncome.tooltip") + "\n"
+                () => WrapTooltip(Helper.Translation.Get("config.quantityIncome.tooltip") + "\n"
                     + Utils.DifficultyCalculator.FormatQuantityAnchors(
                         Helper.Translation.Get("config.anchor.item"),
-                        Helper.Translation.Get("config.anchor.sep")),
+                        Helper.Translation.Get("config.anchor.sep"))),
                 10f, 300f, 1f,
                 value => $"{value:0}%");
 
@@ -224,7 +225,10 @@ namespace FishingExpanded
                 () => Config.ExperienceIncomePercent,
                 value => Config.ExperienceIncomePercent = (int)Math.Round(value),
                 () => Helper.Translation.Get("config.experienceIncome.name"),
-                () => Helper.Translation.Get("config.experienceIncome.tooltip"),
+                () => WrapTooltip(Helper.Translation.Get("config.experienceIncome.tooltip") + "\n"
+                    + Utils.DifficultyCalculator.FormatExperienceAnchors(
+                        Helper.Translation.Get("config.anchor.expItem"),
+                        Helper.Translation.Get("config.anchor.sep"))),
                 10f, 300f, 1f,
                 value => $"{value:0}%");
 
@@ -234,15 +238,33 @@ namespace FishingExpanded
                 () => Config.NoMinigameQuantityIncomePercent,
                 value => Config.NoMinigameQuantityIncomePercent = (int)Math.Round(value),
                 () => Helper.Translation.Get("config.noMinigameQuantityIncome.name"),
-                () => Helper.Translation.Get("config.noMinigameQuantityIncome.tooltip") + "\n"
+                () => WrapTooltip(Helper.Translation.Get("config.noMinigameQuantityIncome.tooltip") + "\n"
                     + Utils.DifficultyCalculator.FormatQuantityAnchors(
                         Utils.DifficultyCalculator.NoMinigameQuantityAnchors,
                         Helper.Translation.Get("config.anchor.itemNoMinigame"),
-                        Helper.Translation.Get("config.anchor.sep")),
+                        Helper.Translation.Get("config.anchor.sep"))),
                 10f, 300f, 1f,
                 value => $"{value:0}%");
 
             RegisterGmcmResetSection(api);
+        }
+
+        /// <summary>BATCH-081: GMCM 提示自行折行——GMCM 1.16.0 只在整段文本不含 \n 时才自动按
+        /// 800px 折行（反编译 SpecificModConfigMenu.draw：`!text2.Contains("\n")` 才 parseText）；
+        /// 我们拼接节点行引入 \n 后必须按段自行折行，字体(Game1.dialogueFont)与宽度(800px)与 GMCM 一致。
+        /// 纯函数、无状态；仅在 GMCM 注册块内的 tooltip 求值时调用。</summary>
+        private static string WrapTooltip(string raw)
+        {
+            if (string.IsNullOrEmpty(raw))
+                return raw;
+
+            string[] parts = raw.Split('\n');
+            for (int i = 0; i < parts.Length; i++)
+            {
+                if (!string.IsNullOrWhiteSpace(parts[i]))
+                    parts[i] = Game1.parseText(parts[i], Game1.dialogueFont, 800);
+            }
+            return string.Join("\n", parts);
         }
 
         /// <summary>BATCH-042: GMCM 重置区（参考 GCE GMCM 方案：章节标题 + 警告段落 + 布尔开关待命；
@@ -1317,26 +1339,26 @@ namespace FishingExpanded
             bool crabNotVanillaFish = !DifficultyManager.IsNonFishItem("(O)128");
             bool crabNonFishLevelCap = DifficultyManager.GetMaxDifficultyLevel("(O)715") == 8;
 
-            // BATCH-077: 数量锚点曲线自测（Exact=确定性线性期望；概率过渡仅作用于不足 1 条的余量）
+            // BATCH-082: 数量锚点曲线自测（Exact=确定性线性期望；概率过渡仅作用于不足 1 条的余量）
             Report("数量: -10级期望=1", Utils.DifficultyCalculator.GetQuantityMultiplierExact(-10) == 1d,
                 $"实际 {Utils.DifficultyCalculator.GetQuantityMultiplierExact(-10)}");
             Report("数量: 0级期望=1", Utils.DifficultyCalculator.GetQuantityMultiplierExact(0) == 1d,
                 $"实际 {Utils.DifficultyCalculator.GetQuantityMultiplierExact(0)}");
             Report("数量: 8级期望=2", Utils.DifficultyCalculator.GetQuantityMultiplierExact(8) == 2d,
                 $"实际 {Utils.DifficultyCalculator.GetQuantityMultiplierExact(8)}");
-            Report("数量: 16级期望=4", Utils.DifficultyCalculator.GetQuantityMultiplierExact(16) == 4d,
+            Report("数量: 16级期望=3", Utils.DifficultyCalculator.GetQuantityMultiplierExact(16) == 3d,
                 $"实际 {Utils.DifficultyCalculator.GetQuantityMultiplierExact(16)}");
-            Report("数量: 32级期望=8", Utils.DifficultyCalculator.GetQuantityMultiplierExact(32) == 8d,
+            Report("数量: 32级期望=4", Utils.DifficultyCalculator.GetQuantityMultiplierExact(32) == 4d,
                 $"实际 {Utils.DifficultyCalculator.GetQuantityMultiplierExact(32)}");
-            Report("数量: 56级期望=24", Utils.DifficultyCalculator.GetQuantityMultiplierExact(56) == 24d,
+            Report("数量: 56级期望=7", Utils.DifficultyCalculator.GetQuantityMultiplierExact(56) == 7d,
                 $"实际 {Utils.DifficultyCalculator.GetQuantityMultiplierExact(56)}");
-            Report("数量: 100级期望=100", Utils.DifficultyCalculator.GetQuantityMultiplierExact(100) == 100d,
+            Report("数量: 100级期望=25", Utils.DifficultyCalculator.GetQuantityMultiplierExact(100) == 25d,
                 $"实际 {Utils.DifficultyCalculator.GetQuantityMultiplierExact(100)}");
             Report("数量: 4级期望=1.5(用户示例)", Math.Abs(Utils.DifficultyCalculator.GetQuantityMultiplierExact(4) - 1.5d) < 1e-9,
                 $"实际 {Utils.DifficultyCalculator.GetQuantityMultiplierExact(4)}");
-            Report("数量: 12级期望=3(恒定)", Math.Abs(Utils.DifficultyCalculator.GetQuantityMultiplierExact(12) - 3d) < 1e-9,
+            Report("数量: 12级期望=2.5", Math.Abs(Utils.DifficultyCalculator.GetQuantityMultiplierExact(12) - 2.5d) < 1e-9,
                 $"实际 {Utils.DifficultyCalculator.GetQuantityMultiplierExact(12)}");
-            Report("数量: 78级期望=62(恒定)", Math.Abs(Utils.DifficultyCalculator.GetQuantityMultiplierExact(78) - 62d) < 1e-9,
+            Report("数量: 78级期望=16(恒定)", Math.Abs(Utils.DifficultyCalculator.GetQuantityMultiplierExact(78) - 16d) < 1e-9,
                 $"实际 {Utils.DifficultyCalculator.GetQuantityMultiplierExact(78)}");
 
             // 概率过渡统计：4级期望 1.5 → ×2 占比应在 35%~65%（2000 次；偏差容限 ≥13σ，误报概率可忽略）
@@ -1350,11 +1372,11 @@ namespace FishingExpanded
             Report("数量: 4级概率过渡≈50%", twoCount >= rollTotal * 35 / 100 && twoCount <= rollTotal * 65 / 100,
                 $"×2 占比 {(double)twoCount * 100 / rollTotal:F1}% ({twoCount}/{rollTotal})");
 
-            // 整数期望等级无随机：78 级期望恰为 62 条，任何次数都应恒定
+            // 整数期望等级无随机：78 级期望恰为 16 条（新锚点 56→100 段中 (78−56)×18/44=9），任何次数都应恒定
             bool stable78 = true;
             for (int rollIndex = 0; rollIndex < 100 && stable78; rollIndex++)
-                stable78 = Utils.DifficultyCalculator.GetQuantityMultiplier(78) == 62;
-            Report("数量: 78级恒定62条(整数期望不随机)", stable78, $"100 次采样全部=62? {stable78}");
+                stable78 = Utils.DifficultyCalculator.GetQuantityMultiplier(78) == 16;
+            Report("数量: 78级恒定16条(整数期望不随机)", stable78, $"100 次采样全部=16? {stable78}");
 
             // BATCH-078: 无小游戏物品专属曲线（确定性期望 + 锚点恒定 + 训练竿常量与封顶判定）
             Report("数量: 无小游戏0级=1", Utils.DifficultyCalculator.GetNoMinigameQuantityMultiplierExact(0) == 1d,
@@ -1443,19 +1465,26 @@ namespace FishingExpanded
                 $"实际 {Utils.DifficultyCalculator.GetExperienceDifficulty(120f, 70f):F0}");
 
             // BATCH-068: 经验倍数曲线（10 级保持 ×5、100 级 ×20、10~100 线性；1~10 现状）
+            // BATCH-082: 经验倍数锚点曲线自测（0/10/30/50/75/100 节点；线性插值后向下取整）
             Report("倍数: 0级=1", Utils.DifficultyCalculator.GetExperienceMultiplier(0) == 1,
                 $"实际 {Utils.DifficultyCalculator.GetExperienceMultiplier(0)}");
             Report("倍数: 负数=1", Utils.DifficultyCalculator.GetExperienceMultiplier(-5) == 1,
                 $"实际 {Utils.DifficultyCalculator.GetExperienceMultiplier(-5)}");
-            Report("倍数: 5级=3(现状)", Utils.DifficultyCalculator.GetExperienceMultiplier(5) == 3,
+            Report("倍数: 5级=1(插值1.5向下)", Utils.DifficultyCalculator.GetExperienceMultiplier(5) == 1,
                 $"实际 {Utils.DifficultyCalculator.GetExperienceMultiplier(5)}");
-            Report("倍数: 10级=5(保持)", Utils.DifficultyCalculator.GetExperienceMultiplier(10) == 5,
+            Report("倍数: 10级=2(节点)", Utils.DifficultyCalculator.GetExperienceMultiplier(10) == 2,
                 $"实际 {Utils.DifficultyCalculator.GetExperienceMultiplier(10)}");
-            Report("倍数: 13级=6", Utils.DifficultyCalculator.GetExperienceMultiplier(13) == 6,
-                $"实际 {Utils.DifficultyCalculator.GetExperienceMultiplier(13)}");
-            Report("倍数: 50级=12", Utils.DifficultyCalculator.GetExperienceMultiplier(50) == 12,
+            Report("倍数: 20级=2(插值2.5向下)", Utils.DifficultyCalculator.GetExperienceMultiplier(20) == 2,
+                $"实际 {Utils.DifficultyCalculator.GetExperienceMultiplier(20)}");
+            Report("倍数: 30级=3(节点)", Utils.DifficultyCalculator.GetExperienceMultiplier(30) == 3,
+                $"实际 {Utils.DifficultyCalculator.GetExperienceMultiplier(30)}");
+            Report("倍数: 50级=4(节点)", Utils.DifficultyCalculator.GetExperienceMultiplier(50) == 4,
                 $"实际 {Utils.DifficultyCalculator.GetExperienceMultiplier(50)}");
-            Report("倍数: 100级=20", Utils.DifficultyCalculator.GetExperienceMultiplier(100) == 20,
+            Report("倍数: 75级=5(节点)", Utils.DifficultyCalculator.GetExperienceMultiplier(75) == 5,
+                $"实际 {Utils.DifficultyCalculator.GetExperienceMultiplier(75)}");
+            Report("倍数: 85级=6(插值6.2向下)", Utils.DifficultyCalculator.GetExperienceMultiplier(85) == 6,
+                $"实际 {Utils.DifficultyCalculator.GetExperienceMultiplier(85)}");
+            Report("倍数: 100级=8(封顶)", Utils.DifficultyCalculator.GetExperienceMultiplier(100) == 8,
                 $"实际 {Utils.DifficultyCalculator.GetExperienceMultiplier(100)}");
 
             FishingLog.Log($"======== 自测结果: {pass} 通过 / {fail} 失败 ========", fail == 0 ? LogLevel.Info : LogLevel.Error);

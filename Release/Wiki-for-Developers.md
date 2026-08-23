@@ -1,6 +1,6 @@
 # Fishing Expanded — 玩家 Wiki（资深玩家版）
 
-> 面向资深玩家的完整机制文档。内容基于 `GAME-DESIGN.md` 与当前源码（manifest 版本 `1.0.0`，2026-08-22 对照源码全仓复核同步：BATCH-069~079——100 级流动皇冠及图鉴 ×1.2/困难模式 ×1.3 彩蛋（BATCH-048/074）、全随机模式 `EnableRandomFishBehavior` 配置表（BATCH-058R/S）、自定义称号 `CustomFishingTitle` 仅手动编辑（BATCH-073）、日志默认关闭（2026-08-22）、控制台命令补全至 18 个、跳鱼前摇旋转曲线 ±70°（BATCH-058T）、祖龙王尊敬词 5 种、存档字段含背板种子；数量曲线 BATCH-077 锚点+概率过渡、收益缩放三滑杆（BATCH-076）、无小游戏物品专属曲线与 5% 升级掷签 + 训练鱼竿声誉封顶 4（BATCH-078）、Walk of Life 同装兼容层（BATCH-079））。公式与阈值以代码实际行为为准；与设计文档不一致处已用「实现说明」标注。
+> 面向资深玩家的完整机制文档。内容基于 `GAME-DESIGN.md` 与当前源码（manifest 版本 `1.0.0`，2026-08-22 对照源码全仓复核同步：BATCH-069~079——100 级流动皇冠及图鉴 ×1.2/困难模式 ×1.3 彩蛋（BATCH-048/074）、全随机模式 `EnableRandomFishBehavior` 配置表（BATCH-058R/S）、自定义称号 `CustomFishingTitle` 仅手动编辑（BATCH-073）、日志默认关闭（2026-08-22）、控制台命令补全至 18 个、跳鱼前摇旋转曲线 ±70°（BATCH-058T）、祖龙王尊敬词 5 种、存档字段含背板种子；数量曲线 BATCH-082 新锚点+概率过渡、经验倍数 BATCH-082 锚点×1→×8 向下取整、收益缩放三滑杆改名额外渔获/额外经验（BATCH-076/081）、万能+10%/挑战+20% 增产改版（BATCH-082）、无小游戏物品专属曲线与 5% 升级掷签 + 训练鱼竿声誉封顶 4（BATCH-078）、Walk of Life 同装兼容层（BATCH-079））。公式与阈值以代码实际行为为准；与设计文档不一致处已用「实现说明」标注。
 >
 > English readers: the complete standalone English version is **Part 2** in the second half of this document.
 
@@ -28,7 +28,8 @@
 | 调整后难度 | 小游戏实际难度 = 原生 difficulty × 声誉倍数；星标（≥120）、跳鱼（≥150）、力竭/挑战鱼饵（≥100/>100）等判定均基于它（§4） |
 | 有效难度 | 战斗中实时难度 = 调整后难度经力竭衰减后的值（15 分钟降到 80；挑战鱼饵下恒等于开局值）（§9.3） |
 | 难度档位 | 按有效难度划分的机制档位（跳鱼间隔 150/250/350/450/550 分档等）（§4.2） |
-| 数量倍数 | 锚点曲线 + 余量概率进位（BATCH-077，详见 §2.4 与 §9.2）；锚点 -10/0=1、8=2、16=4、32=8、56=24、100=100 | 100 → 100；78 → 恒 62；4 → 期望 1.5 |
+| 数量倍数 | 锚点曲线 + 余量概率进位（BATCH-082，详见 §2.4 与 §9.2）；锚点 -10/0=1、8=2、16=3、32=4、56=7、100=25 | 100 → 25；78 → 恒 16；4 → 期望 1.5 |
+| 经验倍数 | 锚点曲线 + 线性插值向下取整（BATCH-082，详见 §2.4 与 §9.2）；节点 0=×1、10=×2、30=×3、50=×4、75=×5、100=×8 封顶 | 50 → ×4；85 → ×6；100 → ×8 |
 | 固定钓鱼等级系数 | 声誉增长系数 = max(固定钓鱼等级, 1)×0.1——固定钓鱼等级 = 玩家基础钓鱼等级字段（0~10，不含食物/饮料 buff 与助战临时等级）；1 级 ×0.1、10 级 ×1.0（§2.2，BATCH-067） |
 | 经验难度钳制 | 经验公式的难度输入钳制在 [原生难度, 120]：低于原生难度（负数等级/力竭）按原生难度重算，高于 120 按 120 重算（§2.4，BATCH-068） |
 | 可计数皇冠 | 56 条原生普通真鱼 + 5 条原版传奇鱼（共 61）的皇冠；Mod 鱼/扩展传奇皇冠只显示、不计入 α 与助战（§7.1） |
@@ -92,8 +93,8 @@
 | 效果 | 公式 | 端点值 |
 |---|---|---|
 | difficulty 倍数 | 正数分段线性：0→×1.0、4→×1.2、20→×5、50→×20、100→×50（斜率 0.05 / 0.2375 / 0.5 / 0.6 逐段递增）；负数：`0.5 + 0.5×(level+10)/10` | -10 → 0.5；0 → 1；100 → 50 |
-| 获得数量倍数 | 锚点曲线（BATCH-077）：`(-10,1) (0,1) (8,2) (16,4) (32,8) (56,24) (100,100)` 线性期望插值，区间外钳端点；**仅小数余量按概率进位**（f=进位概率，每次结算掷一次 `Game1.random`），整数期望恒定不随机（例：4 级期望 1.5 → 约 50% 给 2 条；12 级恒 3；78 级恒 62） | 8 → 期望 2；56 → 24；100 → 100 |
-| 经验倍数 | 1~10 级：`max(1, round(level × 0.5))`（10 级 = ×5，BATCH-060 公式保持）；10~100 级：线性 `round(5 + (level−10)×15/90)`（BATCH-068：10 级 ×5 → 100 级 ×20）；≥100 封顶 20 | 10 → 5；50 → 12；100 → 20 |
+| 获得数量倍数 | 锚点曲线（BATCH-082）：`(-10,1) (0,1) (8,2) (16,3) (32,4) (56,7) (100,25)` 线性期望插值，区间外钳端点；**仅小数余量按概率进位**（f=进位概率，每次结算掷一次 `Game1.random`），整数期望恒定不随机（例：4 级期望 1.5 → 约 50% 给 2 条；12 级期望 2.5 → 约 50% 给 3 条；40 级恒 5；78 级恒 16） | 8 → 期望 2；56 → 7；100 → 25 |
+| 经验倍数 | 锚点曲线（BATCH-082）：`(0,1) (10,2) (30,3) (50,4) (75,5) (100,8)` 线性插值后**向下取整**（尾段 75→100 增速加快为有意设计）；≤0 钳 1 | 10 → 2；50 → 4；85 → 6；100 → 8 封顶 |
 | 经验难度输入 | 钳制在 `[原生难度, 120]`（BATCH-068）：低于原生难度（负数等级/力竭）→ 按原生难度重算（不低于未装模组）；高于 120 → 按 120 重算（基数不爆炸）；区间内不变；重算复刻原生公式 `max(1, (品质+1)×3 + 难度/3)` + 宝箱 +120%/完美 +140%/Boss ×5，随后仍乘经验倍数 | 上限 120（= 原生最高难度 110 以上一点） |
 | 品质提升 | 门槛式“提升到”：`level ≥ 50 → 铱(4)；≥ 25 → 金(2)；≥ 10 → 银(1)；否则不提升`；最终品质 = max(原品质, 门槛)（BATCH-060） | 10 → 银；25 → 金；50 → 铱 |
 | 尺寸数值（fishSize） | 正数：`1 + 0.1×level`；负数：`max(0.1, 1 − 0.05×|level|)` | 100 → 11×；-10 → 0.5× |
@@ -246,10 +247,11 @@
 
 - 动画阶段始终显示原生数量的鱼（本 Mod 不伪造动画条数）。
 - 数量倍数在原生 `CreateFish` 创建最终物品后一次性应用：`最终堆叠 = 原生堆叠 × 等级数量倍数`；BATCH-077 起等级数量倍数为"锚点期望 + 余量概率进位"，**每次结算掷一次**（同一次渔获内所有消费点共用同一个掷签值）；背包与溢出菜单（`ItemGrabMenu`）共用同一个物品，不建立第二套溢出逻辑，不因倍数丢失鱼获。
-- **万能鱼饵加成**（BATCH-038）：声誉 >0 且原生本应给两条鱼（`numCaught ≥ 2`，非挑战鱼饵）时，原生堆叠 **+10 条**（原生 2 条 → 12 条），再乘等级数量倍数。
-- **挑战鱼饵改版**（调整后难度 >100 时生效，BATCH-038）：
-  - **5 分钟（300 秒）内成功** → 原生堆叠 `×1.5`（向上取整）再乘等级数量倍数；
-  - **超时掉星（BATCH-058）**：5:00 起每分钟掉 1 颗原生挑战星（5:00→2、6:00→1、7:00→0，不可恢复；声誉 ≥95 豁免），每掉 1 颗最终鱼获 −20%（0.8/0.6/0.4，**作用于乘完等级倍数后的最终数量**，四舍五入并兜底 ≥1 条——BATCH-067 回归设计口径；原生挑战鱼饵必给 3 条，恒 ≥1 条不归零）；等级收益、普通皇冠、流动金色皇冠、品质、尺寸全部照常（例：30 分钟钓到 98 级鱼仍给流动金皇冠）；**掉星瞬间左下角 FIFO 提示剩余星数与鱼获减少百分比（BATCH-060，小游戏期间可见）**；
+- **万能鱼饵加成**（BATCH-038/082）：声誉 >0 且原生本应给两条鱼（`numCaught ≥ 2`，非挑战鱼饵）时，改为**增产 10%、保底 +1 条**——最终 = max(⌈N×1.1⌉, N+1)，N=正常渔获（1 条 × 等级数量倍数）；原生第 2 条在模组区间内不再发放。声誉 0 时不吃加成、保留原生双倍。
+- **挑战鱼饵改版**（调整后难度 >100 时生效，BATCH-038/082）：
+  - **5 分钟（300 秒）内成功** → **增产 20%、保底 +2 条**：最终 = max(⌈N×1.2⌉, N+2)（原生 `challengeBaitFishes=3` 多发的 2 条在模组区间内不再发放）；调整后难度 ≤100 为原生行为区间（3 条照旧）；
+  - **超时（BATCH-082 一致化）**：数量加成取消且原生多发同样被替代——按正常渔获 N 结算（若保留原生 3 条会"故意拖超时反拿 3 倍"）；
+  - **超时掉星（BATCH-058）**：5:00 起每分钟掉 1 颗原生挑战星（5:00→2、6:00→1、7:00→0，不可恢复；声誉 ≥95 豁免），每掉 1 颗最终鱼获 −20%（0.8/0.6/0.4，作用于最终数量，四舍五入并兜底 ≥1 条——BATCH-067 口径）；等级收益、普通皇冠、流动金色皇冠、品质、尺寸全部照常（例：30 分钟钓到 98 级鱼仍给流动金皇冠）；**掉星瞬间左下角 FIFO 提示剩余星数与鱼获减少百分比（BATCH-060，小游戏期间可见）**；
   - **难度不衰减**（力竭衰减不适用，有效难度恒等于开局值）；
   - **无其他鱼助战**；**原生“3 次脱杆失败”规则禁用**（可继续挑战到成功）。
 - 堆叠按原版规则（同种同品质可堆叠，上限 999）。
@@ -271,7 +273,7 @@
 
 - 等级范围 [-10, 8]；达到 8 级后成功不再增加等级（底层统计保持 8）。
 - **升级改概率制（BATCH-078）**：每次收获固定请求 +1 级，但仅 **5%** 概率真正授予（`NonFishLevelUpChance`）；未中仍记一次成功事件（连续失败清零、星星检查照常；`SuccessCount` 沿用"累计增长量"口径不加），并有 **20%** 概率弹出一条通用轻提示（i18n `hud.trashMiss.{1..20}`）。钓竿直取与蟹笼两条路径同规则。
-- **数量走专属锚点曲线（BATCH-078）**：`(0,1) (8,8)` 线性期望插值 + 同款余量概率进位（负级钳 1；样例：4 级期望 4.5 → 45% 概率 5 个）；另有独立条数收益滑杆 `NoMinigameQuantityIncomePercent`（见 §设置）。
+- **数量走专属锚点曲线（BATCH-078）**：`(0,1) (8,8)` 线性期望插值 + 同款余量概率进位（负级钳 1；样例：4 级期望 4.5 → 45% 概率 5 个）；另有独立额外渔获滑杆 `NoMinigameQuantityIncomePercent`（见 §设置）。
 - 品质按等级 8 计算（达不到 10 级门槛，不提升）。
 - 8 级封顶后再成功显示 `对于{物品名}而言，你已是帝王`。
 - **实现说明**：设计文档规定非鱼类封顶后仍参与视觉缩放/NPC/星标，但当前代码的巨型鱼登记限定 Category = -4 的真鱼，非鱼类不产生超大鱼展示；其原始难度极低，实际上也几乎不可能达到皇冠阈值。
@@ -286,11 +288,11 @@
 
 | 滑杆 | config 字段 | 范围 | 应用点 |
 |---|---|---|---|
-| 条数收益 | `QuantityIncomePercent` | [10,300] 默认 100 | 万能/挑战/等级倍数/掉星折扣**全部完成后**整体缩放最终条数（向上取整、≥1 条）；蟹笼在倍数后、书×2 前 |
-| 经验收益 | `ExperienceIncomePercent` | [10,300] 默认 100 | 基数重算+倍率之后整体缩放（向上取整）；限额清零优先 |
-| 无小游戏物品条数收益 | `NoMinigameQuantityIncomePercent` | [10,300] 默认 100 | 专属曲线结果之后 |
+| 额外渔获（BATCH-081 前显示名"条数收益"） | `QuantityIncomePercent` | [10,300] 默认 100 | 万能/挑战/等级倍数/掉星折扣**全部完成后**整体缩放最终条数（向上取整、≥1 条）；蟹笼在倍数后、书×2 前 |
+| 额外经验（BATCH-081 前显示名"经验收益"） | `ExperienceIncomePercent` | [10,300] 默认 100 | 基数重算+倍率之后整体缩放（向上取整）；限额清零优先 |
+| 无小游戏物品额外渔获（BATCH-081 前显示名"无小游戏物品条数收益"） | `NoMinigameQuantityIncomePercent` | [10,300] 默认 100 | 专属曲线结果之后 |
 
-节日原生模式三者均不生效；GMCM 条数类 tooltip 动态显示实际锚点阵列（`FormatQuantityAnchors`）。
+节日原生模式三者均不生效；GMCM tooltip 动态显示实际节点阵列（`FormatQuantityAnchors` / BATCH-081 新增 `FormatExperienceAnchors`，倍数实时取 `GetExperienceMultiplier`）；三条收益滑杆的 tooltip 由 `ModEntry.WrapTooltip` 按 GMCM 同款字体(`Game1.dialogueFont`)/宽度(800px)自行折行——GMCM 对含 `\n` 的文本不做自动折行（反编译 `SpecificModConfigMenu.draw`）。
 
 ### 9.3 力竭机制（调整后难度 ≥100 的非鱼王，BATCH-038）
 
@@ -341,9 +343,9 @@
 | `EnableLogging` | false | 调试/信息日志总开关（2026-08-22 起）；Warn/Error/Alert 始终输出 |
 | `EnableRandomFishBehavior` | false | 鱼的行为全随机模式（BATCH-058R/S）：true = 每局行为完全随机、无背板种子、更难；100 级流动皇冠图鉴 ×1.3（BATCH-074） |
 | `EnableFestivalFishingMods` | false | 节日钓鱼应用模组规则（BATCH-066，见下表） |
-| `QuantityIncomePercent` | 100 | 条数收益缩放（BATCH-076）：[10,300]，GMCM 滑杆；tooltip 显示实际锚点阵列 |
-| `ExperienceIncomePercent` | 100 | 经验收益缩放（BATCH-076）：[10,300]，GMCM 滑杆 |
-| `NoMinigameQuantityIncomePercent` | 100 | 无小游戏物品条数收益缩放（BATCH-078）：[10,300]，GMCM 滑杆；独立于主曲线 |
+| `QuantityIncomePercent` | 100 | 额外渔获缩放（BATCH-076，BATCH-081 改显示名）：[10,300]，GMCM 滑杆；tooltip 显示实际锚点阵列 |
+| `ExperienceIncomePercent` | 100 | 额外经验缩放（BATCH-076，BATCH-081 改显示名）：[10,300]，GMCM 滑杆 |
+| `NoMinigameQuantityIncomePercent` | 100 | 无小游戏物品额外渔获缩放（BATCH-078，BATCH-081 改显示名）：[10,300]，GMCM 滑杆；独立于主曲线 |
 | `CustomFishingTitle` | 空 | 自定义钓鱼称号（BATCH-073）：非空替代所有玩家可见称号；仅手动编辑 config.json，不注册 GMCM |
 
 ### 节日钓鱼开关（BATCH-066）
@@ -452,15 +454,15 @@ fish_bonus 2               # 核对副机数据
 | 铱星品质起点 | 门槛式：10 级→银、25 级→金、**50 级→铱**（最终品质 = max(原品质, 门槛)，BATCH-060） |
 | 鱼跳 / 史诗失败提示 | 调整后难度 ≥150（加速度档位锚点曲线，90 级起满档） |
 | 运动公式修正 / 挑战鱼饵 / 力竭 | 调整后难度 >100（力竭 ≥100） |
-| 挑战鱼饵数量 | 5 分钟内成功：原生 ×1.5（ceil）再乘等级倍数；超时按掉星 −20%/颗（0.8/0.6/0.4，≥95 豁免，掉星有左下角提示） |
-| 万能鱼饵 | 等级 >0 且原生两条：2 → 12 条，再乘等级倍数 |
+| 挑战鱼饵数量 | 5 分钟内成功：增产 20%、保底 +2 条（max(⌈N×1.2⌉, N+2)，N=正常渔获；原生多发不再发放，BATCH-082）；超时按正常渔获结算并掉星 −20%/颗（0.8/0.6/0.4，≥95 豁免不掉星，掉星有左下角提示） |
+| 万能鱼饵 | 等级 >0 且原生两条：增产 10%、保底 +1 条（max(⌈N×1.1⌉, N+1)；原生第 2 条不再发放；0 级保留原生双倍，BATCH-082） |
 | 星之果茶 | 声誉 ≥50，概率 等级/400（每次成功独立判定） |
 | 持久战奖励 | 失败 ≥60 秒 → 海泡布丁；30~60 秒 → 50% +3 料理；30 秒巅峰提示 |
 | 蓄力槽保护 | ≤20% → ×0.80，≤1% → ×0.50（全局，非鱼王） |
 | 鱼王豁免 | 五大传奇鱼：全部系统豁免，一次钓获直接给皇冠 |
 | 非鱼类上限 | 等级 8（数量 8 倍封顶，BATCH-062；品质不提升） |
 | 一次成功最大收益 | (完美 +10 + round(调整后难度/50)) × 固定钓鱼等级系数 max(等级,1)×0.1，保底 +1，按下一称号上限封顶（BATCH-067） |
-| 经验倍数 | 1~10 级 max(1, round(level×0.5))（10 级 = ×5）；10~100 级线性 ×5→×20（50 级 ×12、100 级 ×20；BATCH-068） |
+| 经验倍数 | 锚点节点 0=×1、10=×2、30=×3、50=×4、75=×5、100=×8 封顶；插值后向下取整（BATCH-082；20级=×2、85级=×6） |
 | 经验难度钳制 | 经验公式难度输入 ∈ [原生难度, 120]：负数等级/力竭按原生难度重算（不低于未装模组），超 120 按 120（BATCH-068） |
 | 蟹笼 | 每次收获 +1 等级（固定，不吃系数）；经验原生 5 点（BATCH-065） |
 | 节日钓鱼 | `EnableFestivalFishingMods` 默认 false = 三个钓鱼节日完全原生；true = 模组规则 + 节日分数按数量倍数翻倍（BATCH-066） |
@@ -523,7 +525,8 @@ fish_bonus 2               # 核对副机数据
 | Adjusted difficulty | Actual minigame difficulty = native difficulty × level multiplier; star crowns (≥120), fish jumps (≥150), exhaustion/challenge bait (≥100/>100) key off it (§4) |
 | Effective difficulty | Real-time fight difficulty = adjusted difficulty after exhaustion decay (down to 80 at 15 min; constant under challenge bait) (§9.3) |
 | Difficulty tiers | Mechanic bands by effective difficulty (jump intervals 150/250/350/450/550 etc.) (§4.2) |
-| Quantity multiplier | Anchor curve + fractional roll (BATCH-077, see §2.4 & §9.2); anchors -10/0=1, 8=2, 16=4, 32=8, 56=24, 100=100 | 100 → 100; 78 → constant 62; 4 → expectation 1.5 |
+| Quantity multiplier | Anchor curve + fractional roll (BATCH-082, see §2.4 & §9.2); anchors -10/0=1, 8=2, 16=3, 32=4, 56=7, 100=25 | 100 → 25; 78 → constant 16; 4 → expectation 1.5 |
+| XP multiplier | Anchor curve (BATCH-082): `(0,1) (10,2) (30,3) (50,4) (75,5) (100,8)` linear interpolation floored; tail 75→100 ramps faster by design; ≤0 clamps to 1 | 10→2; 50→4; 85→6; 100→8 capped |
 | Fixed fishing-level factor | Level-gain factor = max(base fishing level, 1)×0.1 — base field only (0–10, no food/drink buffs or assist temp levels); ×0.1 at 1, ×1.0 at 10 (§2.2, BATCH-067) |
 | XP difficulty clamp | XP formula's difficulty input clamped to [native difficulty, 120]: below → recompute at native; above → recompute at 120 (§2.4, BATCH-068) |
 | Countable crowns | Crowns of the 56 native regular fish + 5 vanilla legendaries (= 61); mod-fish/extended-legendary crowns display only and don't count toward α or assist (§7.1) |
@@ -587,8 +590,8 @@ Failure: level −1 and consecutive-failures +1 (cleared on success; feeds epic 
 | Effect | Formula | Endpoints |
 |---|---|---|
 | difficulty multiplier | positive piecewise-linear anchors 0→×1.0, 4→×1.2, 20→×5, 50→×20, 100→×50 (slopes 0.05 / 0.2375 / 0.5 / 0.6, increasing); negative `0.5 + 0.5×(level+10)/10` | −10→0.5; 0→1; 100→50 |
-| quantity multiplier | `level ≤ 0 ? 1 : level` (BATCH-062, decoupled from XP) | 100→100; 8→8; 50→50 |
-| XP multiplier | ≤10: `max(1, round(level×0.5))`; 10–100: `round(5+(level−10)×15/90)` (BATCH-068: ×5→×20); capped at 20 | 10→5; 50→12; 100→20 |
+| quantity multiplier | anchor curve (BATCH-082): `(-10,1) (0,1) (8,2) (16,3) (32,4) (56,7) (100,25)` linear expectation + fractional roll; anchors and integer-expectation levels constant | 8→2; 56→7; 100→25; 78→constant 16 |
+| XP multiplier | anchor curve (BATCH-082): `(0,1) (10,2) (30,3) (50,4) (75,5) (100,8)` linear interpolation floored (tail 75→100 ramps faster by design); ≤0 clamps to 1 | 10→2; 50→4; 85→6; 100→8 capped |
 | XP difficulty input | clamped `[native difficulty, 120]` (BATCH-068): below native (negative level/exhaustion) → recompute at native (never below un-modded); above 120 → recompute at 120; recompute replicates vanilla `max(1,(quality+1)×3+difficulty/3)` + treasure +120% / perfect +140% / boss ×5, then still multiplied by the XP multiplier | cap 120 |
 | quality raise-to | `level ≥ 50 → iridium(4); ≥25 → gold(2); ≥10 → silver(1)`; final = max(base, threshold) (BATCH-060) | 10 silver; 25 gold; 50 iridium |
 | fishSize value | positive `1 + 0.1×level`; negative `max(0.1, 1 − 0.05×|level|)` | 100→11×; −10→0.5× |
@@ -742,10 +745,11 @@ Corner messages use a **FIFO queue**: one visible at a time, next after fade-out
 
 - The animation phase always shows the native fish count (no fabricated counts).
 - The quantity multiplier applies once after vanilla `CreateFish` creates the final item: `final stack = native stack × level multiplier`; inventory and overflow menu (`ItemGrabMenu`) share the same item — no second overflow path, no losses.
-- **Wild bait bonus** (BATCH-038): level >0 and a native 2-fish result (`numCaught ≥ 2`, non-challenge bait) → native stack **+10** (2 → 12), then the level multiplier.
-- **Challenge bait revamp** (active when adjusted >100, BATCH-038):
-  - **Success within 5:00 (300s)** → native stack `×1.5` (ceiling), then the level multiplier;
-  - **Overtime star drop (BATCH-058)**: one native star lost per minute from 5:00 (5:00→2, 6:00→1, 7:00→0, unrecoverable; exempt at level ≥95), each star −20% of the FINAL count (0.8/0.6/0.4, applied after the level multiplier, rounded, floored at ≥1 — BATCH-067 back to design wording; native bait always yields 3 so it never hits zero); level gains, normal crowns, flowing crowns, quality and size all unaffected (e.g. a level-98 fish landed after 30 minutes still gets its flowing crown); **a bottom-left FIFO notice shows remaining stars and the percentage lost (BATCH-060, visible during the minigame)**;
+- **Wild bait bonus** (BATCH-038/082): level >0 and a native 2-fish result (`numCaught ≥ 2`, non-challenge bait) → **+10% catch with a +1 floor**: final = max(⌈N×1.1⌉, N+1), N = the normal catch (1 × level multiplier); the native extra fish is no longer granted inside the mod's scope. At level 0 the vanilla double catch is kept.
+- **Challenge bait revamp** (active when adjusted >100, BATCH-038/082):
+  - **Success within 5:00 (300s)** → **+20% catch with a +2 floor**: final = max(⌈N×1.2⌉, N+2) (the native `challengeBaitFishes=3` extras are no longer granted inside the mod's scope); adjusted ≤100 stays vanilla (3 fish as before);
+  - **Overtime (BATCH-082)**: the count bonus is cancelled and the native extras are likewise replaced — settles at the normal catch N (keeping 3 would reward stalling for triple);
+  - **Overtime star drop (BATCH-058)**: one native star lost per minute from 5:00 (5:00→2, 6:00→1, 7:00→0, unrecoverable; exempt at level ≥95), each star −20% of the FINAL count (0.8/0.6/0.4, rounded, floored at ≥1 — BATCH-067); level gains, normal crowns, flowing crowns, quality and size all unaffected (e.g. a level-98 fish landed after 30 minutes still gets its flowing crown); **a bottom-left FIFO notice shows remaining stars and the percentage lost (BATCH-060, visible during the minigame)**;
   - **No difficulty decay** (exhaustion doesn't apply; effective difficulty stays at the opening value);
   - **No fish assist**; the **native "3 failed escapes" rule is disabled** (grind until you win).
 - Stacking follows vanilla (same kind+quality stack, cap 999).
@@ -950,15 +954,15 @@ Expect: everything is isolated by `UniqueMultiplayerID`; host and farmhands neve
 | Iridium quality floor | Threshold raise-to: 10 silver / 25 gold / **50 iridium** (final = max(base, threshold), BATCH-060) |
 | Fish jumps / epic failure | Adjusted ≥150 (acceleration tier curve saturates from level 90) |
 | Motion fixes / challenge bait / exhaustion | Adjusted >100 (exhaustion ≥100) |
-| Challenge bait counts | ≤5:00: native ×1.5 (ceil) then level multiplier; overtime: −20%/lost star (0.8/0.6/0.4, ≥95 exempt, HUD notice) |
-| Wild bait | Level >0 and native pair: 2 → 12, then level multiplier |
+| Challenge bait counts | ≤5:00: +20% catch, +2 floor (max(⌈N×1.2⌉, N+2), N = normal catch; native extras replaced, BATCH-082); overtime: normal catch N, then −20%/lost star (0.8/0.6/0.4, ≥95 exempt from star loss, HUD notice) |
+| Wild bait | Level >0 and native pair: +10% catch, +1 floor (max(⌈N×1.1⌉, N+1); vanilla double kept at level 0; BATCH-082) |
 | Starfruit Tea | Reputation ≥50, chance reputation/400 (independent per success) |
 | Perseverance | Fail ≥60s → Seafoam Pudding; 30–60s → 50% +3 dish; peak tip at 30s |
 | Bar protection | ≤20% → ×0.80, ≤1% → ×0.50 (global, non-legendary) |
 | Legendary exemption | Five legends: exempt from everything, crown on first catch |
 | Non-fish cap | Level 8 (quantity 8× capped, BATCH-062; quality never raised) |
 | Max single-catch gain | (perfect +10 + round(adjusted/50)) × factor max(level,1)×0.1, floored +1, capped by next-rank ceiling (BATCH-067) |
-| XP multiplier | ≤10: max(1, round(level×0.5)) (10 = ×5); 10–100 linear ×5→×20 (50 ×12, 100 ×20; BATCH-068) |
+| XP multiplier | anchor nodes 0=×1, 10=×2, 30=×3, 50=×4, 75=×5, 100=×8 capped; interpolation floored (BATCH-082; level 20 = ×2, 85 = ×6) |
 | XP input clamp | ∈ [native, 120]: negative/exhaustion recompute at native (never below un-modded), >120 at 120 (BATCH-068) |
 | Crab pot | +1 level per haul (fixed, no factor); XP native flat 5 (BATCH-065) |
 | Festival fishing | `EnableFestivalFishingMods` false = three festivals fully vanilla; true = mod rules + scores scaled by quantity multiplier (BATCH-066) |

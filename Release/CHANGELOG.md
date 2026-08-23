@@ -6,6 +6,20 @@
 ---
 
 ## ENGLISH
+## 1.0.1
+
+### Fixes
+- **Generic Mod Config Menu integration restored**: the config menu failed to appear because the mod-provided API interface did not match the actual API (`AddNumberOption` missing its `fieldId` parameter); registration is fixed and the mod shows up in GMCM again.
+- **Non-fish catches**: seaweed/trash hooked without winning the small level-up roll no longer display the "next challenge" line; winning the roll or reaching the level-8 cap still does.
+
+### Improvements
+- **Config tooltips wrap correctly**: long anchor lists inside slider tooltips are word-wrapped with the same font and width GMCM uses, instead of being drawn off-screen; the three income sliders were renamed to **Extra catch income / Extra experience income / No-minigame extra catch income**, and the catch & XP tooltips now list key reputation anchors with live multipliers.
+
+### Balance Rework
+- **Lowered quantity curve anchors**: -10/0 = 1, 8 = 2, 16 = 3, 32 = 4, 56 = 7, 100 = 25 fish per catch (probabilistic carry-over between anchors unchanged).
+- **XP curve reworked**: anchor nodes ×1 at 0, ×2 at 10, ×3 at 30, ×4 at 50, ×5 at 75, capped at ×8 at level 100; interpolation is floored.
+- **Bait bonuses reworked** (both computed on the normal catch): wild bait (level >0, native double) grants **+10% with a +1 floor**; challenge bait within 5:00 (adjusted >100) grants **+20% with a +2 floor**. The native extra fish is no longer granted inside the mod's scope; overtime settles at the normal catch before star-loss penalties.
+
 ## 1.0.0
 
 > First stable release. Gameplay details follow `GAME-DESIGN.md` / `Wiki-for-Developers.md`; this list covers player-visible changes.
@@ -13,6 +27,7 @@
 ### New Content / Balance Rework
 
 - **New quantity curve with a slower early game**: fish per catch now follows player-tuned anchors — reputation -10/0 = 1, 8 = 2, 16 = 4, 32 = 8, 56 = 24, 100 = 100 (replaces the old level × 1 line). Between anchors only the fractional remainder is settled probabilistically on each catch (level 4 expectation 1.5 ≈ a 50% chance of 2 fish); integer-expectation levels are constant, never random.
+- **Reworked bait bonuses**: wild bait (level >0, native double) now grants **+10% catch with a +1 floor**, and challenge bait (adjusted difficulty >100, within 5:00) grants **+20% with a +2 floor** — both computed on the normal catch, replacing the native extra fish (BATCH-082).
 - **Income scaling sliders (GMCM ×3)**: Quantity income / XP income / No-minigame quantity income. Default 100%, adjustable 10%–300%. Quantity applies after every bonus and discount; XP after base recalculation and the level multiplier; the daily-limit zero catch still takes priority. Quantity sliders show the live anchor list in their tooltip.
 - **Training Rod rebalance**: while holding the Training Rod, real-fish reputation above 4 stops growing entirely for that catch (no save writes at all), and a dedicated hint replaces the rank-up tip.
 - **Trash / algae / crab pots rework**: these no-minigame items use their own curve (0 = 1, 8 = 8) and each haul requests +1 level with only a 5% chance to be granted; a missed roll can still pop a light consolation hint (20%).
@@ -77,6 +92,20 @@
 ---
 
 ## 中文
+## 1.0.1
+
+### 修复
+- **Generic Mod Config Menu 集成恢复**：此前配置菜单无法出现——模组提供的 API 接口与实际 API 不匹配（`AddNumberOption` 缺少 `fieldId` 参数），注册失败；现已修复，Fishing Expanded 重新出现在 GMCM 中。
+- **非鱼类钓获**：海藻/垃圾未掷中升级机会时不再显示"下一次向……发起挑战"文案；掷中或达到 8 级封顶时照常显示。
+
+### 改进
+- **config 提示正确换行**：滑杆提示中的长锚点列表按 GMCM 同款字体与宽度自动折行，不再画出屏幕；三个收益滑杆更名为**额外渔获 / 额外经验 / 无小游戏物品额外渔获**，渔获与经验的提示现在会列出关键声誉节点及实时倍数。
+
+### 数值调整
+- **数量曲线锚点下调**：每次钓获 -10/0 = 1 条、8 = 2、16 = 3、32 = 4、56 = 7、100 = 25（锚点间的概率过渡不变）。
+- **经验曲线重做**：锚点节点 0级 ×1、10级 ×2、30级 ×3、50级 ×4、75级 ×5、100级 ×8 封顶；插值后向下取整。
+- **鱼饵加成改版**（均以"不用该鱼饵时的正常渔获"为基数）：万能鱼饵（等级>0 且原生双倍）增产 **10%、保底 +1 条**；挑战鱼饵（难度>100、5 分钟内成功）增产 **20%、保底 +2 条**。原生多发部分在模组区间内不再发放；超时按正常渔获结算后再计算掉星折扣。
+
 ## 1.0.0
 
 > 首个稳定版本。机制以 `GAME-DESIGN.md` / `Wiki-for-Developers.md` 为准，这里只列玩家可感知的主要变化。
@@ -84,7 +113,8 @@
 ### 新内容 / 平衡重构
 
 - **数量曲线前期放缓**：每次钓获条数改为玩家逐点定稿的锚点曲线——声誉 -10/0 = 1 条、8 = 2、16 = 4、32 = 8、56 = 24、100 = 100（替代旧"等级×1"直线）。锚点之间只对"不足 1 条被约掉的余量"按概率进位（4 级期望 1.5 ≈ 一半概率 2 条）；整数期望等级恒定不随机。
-- **收益缩放（GMCM 三条滑杆）**：条数收益 / 经验收益 / 无小游戏物品条数收益，默认 100%，可调 10%~300%。条数作用于全部加成与折扣之后；经验作用于基数重算与倍率之后；每日限额清零仍然最优先。条数类滑杆提示会显示当前实际锚点阵列。
+- **鱼饵加成改版（BATCH-082）**：万能鱼饵（等级>0、原生双倍）改为**增产 10%、保底 +1 条**；挑战鱼饵（调整后难度>100、5 分钟内成功）改为**增产 20%、保底 +2 条**——均以"不用该鱼饵时的正常渔获"为基数，原生的多发部分在模组区间内不再发放。
+- **收益缩放（GMCM 三条滑杆）**：额外渔获 / 额外经验 / 无小游戏物品额外渔获，默认 100%，可调 10%~300%。渔获作用于全部加成与折扣之后；经验作用于基数重算与倍率之后；每日限额清零仍然最优先。滑杆提示会显示关键节点（多少级声誉=多少倍收益）并自动换行。
 - **训练鱼竿再平衡**：手持训练鱼竿时，真鱼声誉高于 4 的部分本次收获完全不写入存档，并用专属提示替代当次的升级建议行。
 - **垃圾/藻类/蟹笼重构**：这类无小游戏物品走专属数量曲线（0 级 = 1 个、8 级 = 8 个）；每次收获固定请求 +1 级但只有 **5%** 概率真正授予，未中有 20% 概率弹出一条轻量安慰提示。
 

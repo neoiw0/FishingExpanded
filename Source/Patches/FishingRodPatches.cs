@@ -30,8 +30,9 @@ namespace FishingExpanded.Patches
             public float AdjustedDifficulty { get; set; }
             public int FishSize { get; set; }
 
-            // BATCH-038: 万能鱼饵加成（难度等级>0 且原生本应给两条鱼时 +10 条）；挑战鱼饵加成（调整后难度>100
-            // 且 5 分钟内成功时按原生数量 ×1.5 向上取整；超时只取消数量加成，皇冠/等级照常）；挑战鱼饵标志（流动皇冠判定）。
+            // BATCH-038/082: 万能鱼饵加成（难度等级>0 且原生本应给两条鱼时增产 10%、保底 +1 条，基数=正常渔获）；
+            // 挑战鱼饵加成（调整后难度>100 且 5 分钟内成功时增产 20%、保底 +2 条；超时取消加成且原生多发同样被
+            // 百分比替代——见 CreateFish_Postfix BATCH-082 分支）；挑战鱼饵标志（流动皇冠判定）。
             public bool WildBaitBonus { get; set; }
             public bool ChallengeBonusActive { get; set; }
             public float ChallengeStarMultiplier { get; set; } = 1f; // BATCH-056: 挑战星惩罚（3 星=1.0、2 星=0.8、1 星=0.6、0 星=0.4）
@@ -507,27 +508,48 @@ namespace FishingExpanded.Patches
                     return;
 
                 // BATCH-076: 条数收益百分比（config 钳制后，默认 100）。
+                // BATCH-082: 挑战鱼饵（调整后难度>100，无论是否超时）一律接管数量——超时也归入本块，
+                // 否则 ≥95 级不掉星的超时会从"不进块"漏回原生 3 条。
                 int incomePercent = ModEntry.Config?.ClampedQuantityPercent ?? 100;
-                bool hasQuantityBonus = data.WildBaitBonus || data.ChallengeBonusActive ||
+                bool challengeBaitHighDiff = data.HasChallengeBait && data.AdjustedDifficulty > 100f;
+                bool hasQuantityBonus = data.WildBaitBonus || data.ChallengeBonusActive || challengeBaitHighDiff ||
                     data.ChallengeStarMultiplier < 1f || data.Multiplier > 1 ||
                     ModEntry.Config?.ClampedQuantityPercent != 100;
                 if (hasQuantityBonus)
                 {
                     int nativeStack = Math.Max(1, __result.Stack);
-                    long finalStack = nativeStack;
+                    long finalStack;
+                    // BATCH-082: 正常渔获最终条数（单杆基础 1 条 × 声誉数量倍数）——鱼饵百分比的统一基数（用户确认）。
+                    long normalFinal = Math.Max(1, data.Multiplier);
 
-                    // BATCH-038: 万能鱼饵原本给两条鱼时 +10 条（难度等级>0）；挑战鱼饵 5 分钟内成功 ×1.5 向上取整。
-                    // BATCH-056: 超过 5 分钟按掉星惩罚（每颗 −20%，替换原“直接取消 ×1.5”）。
-                    // BATCH-067: 掉星折扣移到乘完等级倍数之后，作用于最终数量（回归 GAME-DESIGN §7.5“每掉 1 颗最终鱼获 −20%”），
-                    // 并兜底 ≥1（原实现先对原生 3 条打折 round(3×0.4)=1 再乘倍数，高倍数下实际折扣比设计多最多 20%）。
-                    if (data.WildBaitBonus)
-                        finalStack = nativeStack + 10;
-                    else if (data.ChallengeBonusActive)
-                        finalStack = (long)Math.Ceiling(nativeStack * 1.5);
+                    if (data.ChallengeBonusActive)
+                    {
+                        // BATCH-082: 挑战鱼饵 5 分钟内成功——原"×1.5"改为增产 20%、保底 +2 条；
+                        // 原生 challengeBaitFishes=3 多发的 2 条在模组区间内由百分比替代、不再发放。
+                        finalStack = Math.Max((long)Math.Ceiling(normalFinal * 1.2), normalFinal + 2);
+                    }
+                    else if (challengeBaitHighDiff)
+                    {
+                        // BATCH-082: 挑战鱼饵超时（≥5 分钟，含 ≥95 级不掉星情形）——数量加成取消，
+                        // 原生多发同样已被百分比替代：按正常渔获结算（若保留原生 3 条会反超高产；
+                        // 掉星折扣随后作用，≥95 级豁免不掉星）。
+                        finalStack = normalFinal;
+                    }
+                    else if (data.WildBaitBonus)
+                    {
+                        // BATCH-082: 万能鱼饵（难度>0 且原生双倍触发）——原"+10 条"改为增产 10%、保底 +1 条；
+                        // 原生第 2 条在模组区间内不再发放。0 级不吃加成（走下方默认分支保留原生双倍行为）。
+                        finalStack = Math.Max((long)Math.Ceiling(normalFinal * 1.1), normalFinal + 1);
+                    }
+                    else
+                    {
+                        // 默认分支（含挑战≤100 的原生区间与 0 级万能双倍）：保持原生堆叠 × 声誉倍数。
+                        finalStack = nativeStack;
+                        if (data.Multiplier > 1)
+                            finalStack *= data.Multiplier;
+                    }
 
-                    if (data.Multiplier > 1)
-                        finalStack *= data.Multiplier;
-
+                    // BATCH-067: 掉星折扣作用于最终数量（每颗 −20%），兜底 ≥1。
                     if (data.ChallengeStarMultiplier < 1f)
                         finalStack = Utils.DifficultyCalculator.ApplyChallengeStarMultiplier(finalStack, data.ChallengeStarMultiplier);
 
@@ -539,7 +561,7 @@ namespace FishingExpanded.Patches
                     __result.Stack = (int)Math.Min(int.MaxValue, finalStack);
                     FishingLog.Log(
                         $"[FishingRod] 数量转化完成 | 玩家: {owner.UniqueMultiplayerID} | 鱼ID: {normalizedFishId} | " +
-                        $"原生堆叠: {nativeStack} → 最终: {__result.Stack} | 万能加成: {data.WildBaitBonus} | " +
+                        $"原生堆叠: {nativeStack} → 最终: {__result.Stack} | 正常渔获基数: {normalFinal} | 万能加成: {data.WildBaitBonus} | " +
                         $"挑战加成: {data.ChallengeBonusActive} | 等级倍数: ×{data.Multiplier} | 收益: {incomePercent}%",
                         LogLevel.Info);
                 }
@@ -906,9 +928,12 @@ namespace FishingExpanded.Patches
                     LogLevel.Info);
 
                 // BATCH-012/022/078: 显示成功HUD提示；训练鱼竿封顶时用专属 30 条随机文案替代本次建议行。
+                // BATCH-080: 无小游戏物品掷签未中且未封顶时不显示"下一次挑战"建议行（等级未提升；
+                // 与蟹笼路径"只在等级实际提升时提示"对齐；封顶帝王文案与命中/真鱼/训练竿分支不变）。
                 if (cappedByTrainingRod)
                     HUDNotifier.ShowTrainingCapNotification(fishId);
-                else
+                else if (!data.IsNonFishCatch || grantLevel ||
+                         newLevel >= Utils.SpecialFishHelper.GetMaxLevelForNonFish())
                     HUDNotifier.ShowSuccessNotification(fishId, newLevel, oldLevel);
 
                 // BATCH-078: 无小游戏物品掷签未中——20% 概率弹轻量提示（20 条通用文案，不含鱼类量词）。

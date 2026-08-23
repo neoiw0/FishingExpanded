@@ -28,12 +28,12 @@ namespace FishingExpanded.Utils
             return Lerp(1f, 1.2f, level / 4f);
         }
 
-        /// <summary>BATCH-077: 数量倍数锚点阵列（2026-08-22 用户逐点确认，覆盖未部署的 BATCH-076 阵列）——
+        /// <summary>BATCH-082: 数量倍数锚点阵列（2026-08-23 用户逐点确认，覆盖 BATCH-077 阵列）——
         /// 难度等级 → 条数期望锚点；低于首锚点/高于末锚点钳制到端点；
         /// 锚点之间按线性期望概率过渡（见 GetQuantityMultiplier）。</summary>
         public static readonly (int Level, int Multiplier)[] QuantityAnchors =
         {
-            (-10, 1), (0, 1), (8, 2), (16, 4), (32, 8), (56, 24), (100, 100)
+            (-10, 1), (0, 1), (8, 2), (16, 3), (32, 4), (56, 7), (100, 25)
         };
 
         /// <summary>BATCH-078: 无小游戏物品（非鱼类：垃圾/藻类等钓竿直取物与蟹笼收获，IsNonFishItem 口径）
@@ -129,6 +129,26 @@ namespace FishingExpanded.Utils
             return builder.ToString();
         }
 
+        /// <summary>BATCH-081: 经验倍数关键节点等级列表（展示用；倍数不在此硬编码，
+        /// 由 FormatExperienceAnchors 实时取 GetExperienceMultiplier(level)，保证按实际曲线为准）。</summary>
+        public static readonly int[] ExperienceAnchorLevels = { 0, 10, 30, 50, 75, 100 };
+
+        /// <summary>BATCH-081: 按实际经验倍数曲线生成设置文案节点行
+        /// （zh 示例 "0级=×1倍，2级=×1倍，…，100级=×20倍"）。
+        /// itemFormat 含 {0}=等级、{1}=倍数；separator 为条目分隔符；修改 GetExperienceMultiplier 即同步改变显示。</summary>
+        public static string FormatExperienceAnchors(string itemFormat, string separator)
+        {
+            System.Text.StringBuilder builder = new System.Text.StringBuilder();
+            for (int i = 0; i < ExperienceAnchorLevels.Length; i++)
+            {
+                if (i > 0)
+                    builder.Append(separator);
+                int level = ExperienceAnchorLevels[i];
+                builder.Append(string.Format(itemFormat, level, GetExperienceMultiplier(level)));
+            }
+            return builder.ToString();
+        }
+
         /// <summary>BATCH-067: 固定钓鱼等级系数——难度等级增长与玩家的固定（基础）钓鱼等级挂钩：
         /// 系数 = max(等级,1)/10（1 级 ×0.1、10 级 ×1.0=现有速度；0 级按 0.1 钳制）。
         /// 调用方必须传 `Farmer.fishingLevel.Value`（基础字段，不含食物/饮料 buff 与助战临时等级，
@@ -189,20 +209,22 @@ namespace FishingExpanded.Utils
             return baseXP;
         }
 
-        /// <summary>计算经验倍数（BATCH-068：10 级保持 ×5、100 级改为 ×20，10~100 线性平滑，
-        /// 用户 2026-08-16 确认"10难度能力还是乘以5，之后平滑处理，100难度等级乘以20"；
-        /// 1~10 级保持 BATCH-060 公式 max(1, round(level×0.5))，BATCH-062 与数量倍数解耦）</summary>
+        /// <summary>BATCH-082: 经验倍数锚点阵列（2026-08-23 用户逐点确认）：0级=×1、10级=×2、30级=×3、
+        /// 50级=×4、75级=×5、100级=×8 封顶；锚点间线性插值、向下取整（用户确认）；
+        /// 尾段 75→100 增速加快为有意设计。覆盖 BATCH-068 分段公式与 BATCH-060 的 level×0.5。</summary>
+        public static readonly (int Level, int Multiplier)[] ExperienceAnchors =
+        {
+            (0, 1), (10, 2), (30, 3), (50, 4), (75, 5), (100, 8)
+        };
+
+        /// <summary>计算经验倍数（BATCH-082 锚点曲线：线性插值后向下取整；
+        /// ≤0 级钳 ×1，≥100 级封顶 ×8——均由 InterpolateAnchors 端点钳制保证）。</summary>
         /// <param name="level">难度等级 [0, 100]</param>
         /// <returns>经验倍数（负数等级返回1）</returns>
         public static int GetExperienceMultiplier(int level)
         {
             if (level <= 0) return 1;
-            if (level <= 10)
-                return (int)Math.Max(1, Math.Round(level * 0.5, MidpointRounding.AwayFromZero));
-            if (level >= 100)
-                return 20;
-            // 10→×5、100→×20 线性：5 + (level-10)×(15/90)
-            return (int)Math.Round(5f + (level - 10) * (15f / 90f), MidpointRounding.AwayFromZero);
+            return (int)Math.Floor(InterpolateAnchors(ExperienceAnchors, level));
         }
 
         /// <summary>BATCH-060: 品质门槛（提升到式，非累加）：10 级→银、25 级→金、50 级→铱；10 级以下不提升。</summary>
