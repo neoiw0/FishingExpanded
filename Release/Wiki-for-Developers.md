@@ -1,6 +1,6 @@
 # Fishing Expanded — 玩家 Wiki（资深玩家版）
 
-> 面向资深玩家的完整机制文档。内容基于 `GAME-DESIGN.md` 与当前源码（manifest 版本 `1.0.0`，2026-08-22 对照源码全仓复核同步：BATCH-069~079——100 级流动皇冠及图鉴 ×1.2/困难模式 ×1.3 彩蛋（BATCH-048/074）、全随机模式 `EnableRandomFishBehavior` 配置表（BATCH-058R/S）、自定义称号 `CustomFishingTitle` 仅手动编辑（BATCH-073）、日志默认关闭（2026-08-22）、控制台命令补全至 18 个、跳鱼前摇旋转曲线 ±70°（BATCH-058T）、祖龙王尊敬词 5 种、存档字段含背板种子；数量曲线 BATCH-082 新锚点+概率过渡、经验倍数 BATCH-082 锚点×1→×8 向下取整、收益缩放三滑杆改名额外渔获/额外经验（BATCH-076/081）、万能+10%/挑战+20% 增产改版（BATCH-082）、无小游戏物品专属曲线与 5% 升级掷签 + 训练鱼竿声誉封顶 4（BATCH-078）、Walk of Life 同装兼容层（BATCH-079））。公式与阈值以代码实际行为为准；与设计文档不一致处已用「实现说明」标注。
+> 面向资深玩家的完整机制文档。内容基于 `GAME-DESIGN.md` 与当前源码（manifest 版本 `1.0.1`，2026-08-23 对照源码全仓复核同步：BATCH-069~082——100 级流动皇冠及图鉴 ×1.2/困难模式 ×1.3 彩蛋（BATCH-048/074）、全随机模式 `EnableRandomFishBehavior` 配置表（BATCH-058R/S）、自定义称号 `CustomFishingTitle` 仅手动编辑（BATCH-073）、日志默认关闭（2026-08-22）、控制台命令补全至 18 个、跳鱼前摇旋转曲线 ±70°（BATCH-058T）、祖龙王尊敬词 5 种、存档字段含背板种子；GMCM 集成修复 + 非鱼类掷签未中不显示升级建议行（BATCH-080）；三滑杆改名与 tooltip 折行（BATCH-081）；数量曲线 BATCH-082 新锚点+概率过渡、经验倍数 BATCH-082 锚点×1→×8 向下取整、万能+10%/挑战+20% 增产改版（BATCH-082）；无小游戏物品专属曲线与 5% 升级掷签 + 训练鱼竿声誉封顶 4（BATCH-078）；Walk of Life 同装兼容层（BATCH-079））。公式与阈值以代码实际行为为准；与设计文档不一致处已用「实现说明」标注。
 >
 > English readers: the complete standalone English version is **Part 2** in the second half of this document.
 
@@ -152,6 +152,7 @@
 ### 5.1 成功提示
 
 - 普通鱼未封顶：`下一次你将向{鱼名}中的{称号}发起挑战`（0 级/负数胜利也显示，用“额……稍微强点的家伙”）。
+- 无小游戏物品（海藻/垃圾等）：仅当掷中 5% 升级、或本次达到 8 级封顶时才显示上述建议行/帝王行；**未掷中且未封顶不显示任何升级提示**（BATCH-080）。
 - 鱼达到 100 级（含封顶后再成功）：`你已经成为{鱼名}中的神明，这一刻你是鱼，也是人，更是王。`
 - 非鱼类达到 8 级：`对于{物品名}而言，你已是帝王`。
 - 鱼王：随机 10 条独特文案（如“嗷！孤傲的王！”）。
@@ -292,7 +293,7 @@
 | 额外经验（BATCH-081 前显示名"经验收益"） | `ExperienceIncomePercent` | [10,300] 默认 100 | 基数重算+倍率之后整体缩放（向上取整）；限额清零优先 |
 | 无小游戏物品额外渔获（BATCH-081 前显示名"无小游戏物品条数收益"） | `NoMinigameQuantityIncomePercent` | [10,300] 默认 100 | 专属曲线结果之后 |
 
-节日原生模式三者均不生效；GMCM tooltip 动态显示实际节点阵列（`FormatQuantityAnchors` / BATCH-081 新增 `FormatExperienceAnchors`，倍数实时取 `GetExperienceMultiplier`）；三条收益滑杆的 tooltip 由 `ModEntry.WrapTooltip` 按 GMCM 同款字体(`Game1.dialogueFont`)/宽度(800px)自行折行——GMCM 对含 `\n` 的文本不做自动折行（反编译 `SpecificModConfigMenu.draw`）。
+节日原生模式三者均不生效；GMCM tooltip 动态显示实际节点阵列（`FormatQuantityAnchors` / BATCH-081 新增 `FormatExperienceAnchors`，倍数实时取 `GetExperienceMultiplier`）；三条收益滑杆的 tooltip 由 `ModEntry.WrapTooltip` 按 GMCM 同款字体(`Game1.dialogueFont`)/宽度(800px)自行折行——GMCM 对含 `\n` 的文本不做自动折行（反编译 `SpecificModConfigMenu.draw`）。GMCM 集成本身已于 BATCH-080 修复：模组提供的 API 接口签名与实际 API 完全一致（`AddNumberOption` 含末位 `fieldId` 参数），注册恢复正常、菜单重新出现。
 
 ### 9.3 力竭机制（调整后难度 ≥100 的非鱼王，BATCH-038）
 
@@ -649,6 +650,7 @@ Corner messages use a **FIFO queue**: one visible at a time, next after fade-out
 ### 5.1 Success
 
 - Regular fish below cap: next-rank challenge line (levels ≤0 also show, using the weak-tier name).
+- Non-fish items (seaweed/trash): the suggestion/emperor line shows only when the 5% level-up roll hits or the level-8 cap is reached; **a missed roll without a cap shows no upgrade line at all** (BATCH-080).
 - Level 100 reached (incl. post-cap successes): godhood line ("you are now a god among {fish}…").
 - Non-fish at level 8: "emperor" line for the item.
 - Legendaries: one of 10 unique lines (e.g. "Ao! The proud king!").
@@ -790,7 +792,7 @@ Angler (159), Mutant Carp (682), Glacierfish (775), Crimsonfish (163), Legend (1
 | XP income | `ExperienceIncomePercent` | [10,300] default 100 | after base recalc + multiplier (ceil); daily-limit zero wins |
 | No-minigame quantity income | `NoMinigameQuantityIncomePercent` | [10,300] default 100 | after the exclusive curve result |
 
-In vanilla-festival mode none of the three apply; quantity tooltips render the live anchor list via `FormatQuantityAnchors`.
+In vanilla-festival mode none of the three apply; quantity tooltips render the live anchor list via `FormatQuantityAnchors` and XP tooltips render the live multiplier nodes via `FormatExperienceAnchors` (BATCH-081); all three tooltips are word-wrapped by `ModEntry.WrapTooltip` using GMCM's own font (`Game1.dialogueFont`) and width (800px) — GMCM skips auto-wrapping for any text containing `\n` (decompiled `SpecificModConfigMenu.draw`; BATCH-081). The GMCM integration itself was fixed in BATCH-080: the mod-provided API interface now matches the actual API signatures (`AddNumberOption` includes the trailing `fieldId` parameter), so the mod registers and appears in GMCM again.
 
 ### 9.3 Exhaustion (adjusted ≥100, non-legendary, BATCH-038)
 
