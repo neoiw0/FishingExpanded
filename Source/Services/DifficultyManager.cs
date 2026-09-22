@@ -103,14 +103,123 @@ namespace FishingExpanded.Services
             _dailyLimitNotifiedByPlayer.Clear();
         }
 
+        // BATCH-084: 持久战失败奖励每日限次（内存态，DayStarted 重置，零存档字段）。
+        // 每位玩家两档独立计数：[0]=30~60 秒档（+1 食物），[1]=≥60 秒档（+2 食物）；各每天最多 1 次。
+        public const int PerseveranceDailyCapPerTier = 1;
+        private static readonly Dictionary<long, int[]> _perseveranceDailyByPlayer =
+            new Dictionary<long, int[]>();
+
+        /// <summary>BATCH-084: 消费一次持久战失败奖励当日额度（tier 0=30 秒档, 1=60 秒档；两档独立）。
+        /// 当日该档已达上限返回 false（调用方跳过发放）。fish_persisttest 测试强制路径不得调用本方法。</summary>
+        public static bool TryConsumePerseveranceDaily(int tier, Farmer player)
+        {
+            if (player == null || tier < 0 || tier > 1)
+                return false;
+            if (!_perseveranceDailyByPlayer.TryGetValue(player.UniqueMultiplayerID, out var counts))
+            {
+                counts = new int[2];
+                _perseveranceDailyByPlayer[player.UniqueMultiplayerID] = counts;
+            }
+            if (counts[tier] >= PerseveranceDailyCapPerTier)
+                return false;
+            counts[tier]++;
+            return true;
+        }
+
+        /// <summary>BATCH-084: 该玩家指定档位当日已发次数（供日志展示；tier 0=30 秒档, 1=60 秒档）。</summary>
+        public static int GetPerseveranceDailyCount(int tier, Farmer player)
+        {
+            if (player == null || tier < 0 || tier > 1)
+                return 0;
+            return _perseveranceDailyByPlayer.TryGetValue(player.UniqueMultiplayerID, out var counts)
+                ? counts[tier]
+                : 0;
+        }
+
+        /// <summary>BATCH-084: 新的一天开始，清空持久战失败奖励当日计数。</summary>
+        public static void ResetDailyPerseverance()
+        {
+            _perseveranceDailyByPlayer.Clear();
+        }
+
+        /// <summary>BATCH-084: 进日掷骰食物助战（本地玩家；掷骰结果立即写入存档防读档重抽）。
+        /// 步骤：①窗口维护（窗口戳不同 → 清零已用量）；②按 p=(可计数皇冠÷61)×0.5 掷骰写状态；
+        /// ③单条日志。由 FoodAssistService.OnDayStarted 调用（本管理器仍是 modData 唯一写入者）。</summary>
+        public static void RollDailyFoodAssist(Farmer player)
+        {
+            if (player == null || !Context.IsWorldReady)
+                return;
+
+            FishDifficultyData data = GetData(player);
+            if (data == null)
+                return;
+
+            // 窗口维护：周一开启窗口 1，周四开启窗口 2；跨窗口（含读档跨日）自动清零
+            int stamp = DifficultyCalculator.GetFoodAssistWindowStamp(Game1.Date.TotalDays, Game1.Date.DayOfWeek);
+            if (data.FoodAssistWindowStamp != stamp)
+            {
+                data.FoodAssistWindowStamp = stamp;
+                data.FoodAssistWindowUsed = 0;
+            }
+
+            double chance = DifficultyCalculator.GetFoodAssistDailyChance(
+                GetCountableCrownCount(player), CountableCrownTarget);
+            bool hit = chance > 0.0 && Game1.random.NextDouble() < chance;
+            data.FoodAssistDailyState = hit ? 2 : 1;
+            SaveData(player);
+
+            FishingLog.Log(
+                $"[BATCH-084] 食物助战日掷骰 | 玩家: {player.UniqueMultiplayerID} | 可计数皇冠: {GetCountableCrownCount(player)}/{CountableCrownTarget} | " +
+                $"p={chance:P1} | 结果: {(hit ? "命中" : "未命中")} | 本窗口已用: {data.FoodAssistWindowUsed}/{DifficultyCalculator.FoodAssistWindowQuota}",
+                LogLevel.Info);
+        }
+
+        /// <summary>BATCH-084: 消费当日食物助战命中（小游戏构造边界调用一次；仅本地玩家）。
+        /// 条件：当日状态=2（命中未消费）且当前窗口有剩余额度。成功 → 状态置 3、窗口用量 +1 并立即存档。</summary>
+        public static bool TryConsumeDailyFoodAssist(Farmer player)
+        {
+            if (player == null || !Context.IsWorldReady)
+                return false;
+
+            FishDifficultyData data = GetData(player);
+            if (data == null)
+                return false;
+
+            // 读档/跨日兜底：状态有效但窗口戳过期时先维护（正常路径已在进日处理）
+            int stamp = DifficultyCalculator.GetFoodAssistWindowStamp(Game1.Date.TotalDays, Game1.Date.DayOfWeek);
+            if (data.FoodAssistWindowStamp != stamp)
+            {
+                data.FoodAssistWindowStamp = stamp;
+                data.FoodAssistWindowUsed = 0;
+            }
+
+            if (data.FoodAssistDailyState != 2)
+                return false;
+            if (data.FoodAssistWindowUsed >= DifficultyCalculator.FoodAssistWindowQuota)
+            {
+                FishingLog.Log(
+                    $"[BATCH-084] 食物助战命中被窗口上限拦截 | 玩家: {player.UniqueMultiplayerID} | 本窗口已用: {data.FoodAssistWindowUsed}/{DifficultyCalculator.FoodAssistWindowQuota}",
+                    LogLevel.Info);
+                return false;
+            }
+
+            data.FoodAssistDailyState = 3;
+            data.FoodAssistWindowUsed++;
+            SaveData(player);
+            return true;
+        }
+
+
         /// <summary>BATCH-078: 训练鱼竿有效声誉上限（临时有效值；不改写存档中超过上限的声誉）。</summary>
         public const int TrainingRodLevelCap = 4;
 
         /// <summary>BATCH-078: 无小游戏物品（非鱼类）每次收获的升级概率（原 100% 固定 +1 级改为概率制）。</summary>
         public const double NonFishLevelUpChance = 0.05;
 
-        /// <summary>BATCH-078: 无小游戏物品升级掷签未中时，弹出轻量提示的概率（文案池 20 条通用文案）。</summary>
-        public const double NonFishLevelMissHintChance = 0.20;
+        /// <summary>BATCH-078: 无小游戏物品升级掷签未中时，弹出轻量提示的概率（文案池 20 条通用文案）。
+        /// BATCH-085（2026-09-22 用户定稿）：0.20 → 0.10；且该提示还须通过 `HUDNotifier` 的忙时闸门
+        /// （该玩家屏幕上已有本模组提示或队列非空时直接不弹）才会真正显示。</summary>
+        public const double NonFishLevelMissHintChance = 0.10;
 
         /// <summary>BATCH-078: 训练鱼竿下本次成功的等级增益是否会被封顶拦截
         /// （真实声誉 >4 时恒为 true；否则当"不加训练竿限制会升过 4"时为 true）。供调用方替换建议行提示。</summary>
@@ -802,6 +911,11 @@ namespace FishingExpanded.Services
             data.CollectionStars.Clear();
             data.ChallengeCrowns.Clear();
             data.Level100FlowCrowns.Clear();
+
+            // BATCH-084: 食物助战状态一并清零（"回到刚安装状态"语义；当日掷骰作废，次日重新掷骰）
+            data.FoodAssistDailyState = 0;
+            data.FoodAssistWindowStamp = -1;
+            data.FoodAssistWindowUsed = 0;
 
             // BATCH-046（方案 A，用户 2026-08-12 确认）：重置后立即回填原版 5 条传奇皇冠。
             BackfillLegendaryCrowns(player);

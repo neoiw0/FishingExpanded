@@ -115,7 +115,8 @@ namespace FishingExpanded.Patches
                 int oldLevel = pending.OldLevel;
 
                 // BATCH-078: 无小游戏物品升级掷签——固定 +1 级仅 NonFishLevelUpChance(5%) 概率授予；
-                // 未中仍计一次成功；20% 概率弹一条通用轻提示。
+                // 未中仍计一次成功；BATCH-085: 未中轻提示 10% 概率且该玩家无提示显示/排队时才弹
+                // （忙时丢弃由 HUDNotifier.ShowTrashMissHint 内部闸门裁决）。
                 int maxNonFishLevel = SpecialFishHelper.GetMaxLevelForNonFish();
                 bool grantLevel = oldLevel < maxNonFishLevel &&
                     Game1.random.NextDouble() < DifficultyManager.NonFishLevelUpChance;

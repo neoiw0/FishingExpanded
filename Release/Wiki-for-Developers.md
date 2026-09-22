@@ -1,6 +1,6 @@
 # Fishing Expanded — 玩家 Wiki（资深玩家版）
 
-> 面向资深玩家的完整机制文档。内容基于 `GAME-DESIGN.md` 与当前源码（manifest 版本 `1.0.1`，2026-08-23 对照源码全仓复核同步：BATCH-069~082——100 级流动皇冠及图鉴 ×1.2/困难模式 ×1.3 彩蛋（BATCH-048/074）、全随机模式 `EnableRandomFishBehavior` 配置表（BATCH-058R/S）、自定义称号 `CustomFishingTitle` 仅手动编辑（BATCH-073）、日志默认关闭（2026-08-22）、控制台命令补全至 18 个、跳鱼前摇旋转曲线 ±70°（BATCH-058T）、祖龙王尊敬词 5 种、存档字段含背板种子；GMCM 集成修复 + 非鱼类掷签未中不显示升级建议行（BATCH-080）；三滑杆改名与 tooltip 折行（BATCH-081）；数量曲线 BATCH-082 新锚点+概率过渡、经验倍数 BATCH-082 锚点×1→×8 向下取整、万能+10%/挑战+20% 增产改版（BATCH-082）；无小游戏物品专属曲线与 5% 升级掷签 + 训练鱼竿声誉封顶 4（BATCH-078）；Walk of Life 同装兼容层（BATCH-079））。公式与阈值以代码实际行为为准；与设计文档不一致处已用「实现说明」标注。
+> 面向资深玩家的完整机制文档。内容基于 `GAME-DESIGN.md` 与当前源码（manifest 版本 `1.0.3`，2026-09-22 对照源码复核同步：BATCH-069~082——100 级流动皇冠及图鉴 ×1.2/困难模式 ×1.3 彩蛋（BATCH-048/074）、全随机模式 `EnableRandomFishBehavior` 配置表（BATCH-058R/S）、自定义称号 `CustomFishingTitle` 仅手动编辑（BATCH-073）、日志默认关闭（2026-08-22）、控制台命令补全至 18 个、跳鱼前摇旋转曲线 ±70°（BATCH-058T）、祖龙王尊敬词 5 种、存档字段含背板种子；GMCM 集成修复 + 非鱼类掷签未中不显示升级建议行（BATCH-080）；三滑杆改名与 tooltip 折行（BATCH-081）；数量曲线 BATCH-082 新锚点+概率过渡、经验倍数 BATCH-082 锚点×1→×8 向下取整、万能+10%/挑战+20% 增产改版（BATCH-082）；无小游戏物品专属曲线与 5% 升级掷签 + 训练鱼竿声誉封顶 4（BATCH-078）；Walk of Life 同装兼容层（BATCH-079）；无小游戏掷签未中轻提示 20%→10% 且忙时不弹闸门（BATCH-085，2026-09-22）；注：BATCH-084 持久战降档限次与食物助战尚未并入本文件）。公式与阈值以代码实际行为为准；与设计文档不一致处已用「实现说明」标注。
 >
 > English readers: the complete standalone English version is **Part 2** in the second half of this document.
 
@@ -273,7 +273,7 @@
 ### 9.2 非鱼类（垃圾/藻类等，Category ≠ -4）
 
 - 等级范围 [-10, 8]；达到 8 级后成功不再增加等级（底层统计保持 8）。
-- **升级改概率制（BATCH-078）**：每次收获固定请求 +1 级，但仅 **5%** 概率真正授予（`NonFishLevelUpChance`）；未中仍记一次成功事件（连续失败清零、星星检查照常；`SuccessCount` 沿用"累计增长量"口径不加），并有 **20%** 概率弹出一条通用轻提示（i18n `hud.trashMiss.{1..20}`）。钓竿直取与蟹笼两条路径同规则。
+- **升级改概率制（BATCH-078）**：每次收获固定请求 +1 级，但仅 **5%** 概率真正授予（`NonFishLevelUpChance`）；未中仍记一次成功事件（连续失败清零、星星检查照常；`SuccessCount` 沿用"累计增长量"口径不加），并有 **10%** 概率弹出一条通用轻提示（i18n `hud.trashMiss.{1..20}`）。**BATCH-085：20%→10%，且该玩家屏幕上已有本模组提示正在显示、或队列非空时直接丢弃**（`HUDNotifier.PlayerHasPendingOrActiveMessage` 为只读查询；升级提示与 8 级封顶文案不走此闸门）。钓竿直取与蟹笼两条路径同规则。
 - **数量走专属锚点曲线（BATCH-078）**：`(0,1) (8,8)` 线性期望插值 + 同款余量概率进位（负级钳 1；样例：4 级期望 4.5 → 45% 概率 5 个）；另有独立额外渔获滑杆 `NoMinigameQuantityIncomePercent`（见 §设置）。
 - 品质按等级 8 计算（达不到 10 级门槛，不提升）。
 - 8 级封顶后再成功显示 `对于{物品名}而言，你已是帝王`。
@@ -303,15 +303,29 @@
 - 挑战鱼饵生效时难度**不衰减**（有效难度恒等于开局值），但节点提示仍显示并追加一句随机文案。
 - 每个节点在“鱼其他提示”通道显示一条随机诙谐文案（i18n `hud.exhaust.{1|3|5|7|9|12|15}.{1..10}`）。
 
-### 9.4 持久战奖励（BATCH-039）
+### 9.4 持久战奖励（BATCH-039；BATCH-084 降档限次改版）
 
 - 所有非鱼王小游戏的战斗秒数统一累计（暂停/菜单不计时；鱼王天然豁免）。
 - **30 秒整**：在“鱼其他提示”通道单发一次巅峰提示（10 套随机文案，如“[职阶]的力气达到巅峰”）。
-- **失败且战斗 ≥60 秒**：必得海泡布丁 1 个（`(O)265`，钓鱼 +4）。
-- **30 秒 ≤ 战斗 < 60 秒**：50% 概率随机获得 +3 钓鱼料理之一（海之菜肴 `(O)242` / 烩鱼汤 `(O)728` / 龙虾浓汤 `(O)730`；BATCH-052 修正：228 实为生鱼寿司，海之菜肴=242）。
-- 60 秒不叠加 30 秒的抽奖；奖励进背包（背包满走原生溢出菜单），提示 20 条随机诙谐文案入 FIFO 队列。
+- **失败且战斗 ≥60 秒**：60% 概率随机获得 +2 钓鱼食物之一（法式田螺 / 鱼肉卷）；40% 不发。
+- **30 秒 ≤ 战斗 < 60 秒**：50% 概率随机获得 +1 钓鱼食物之一（鳟鱼汤 / 虾鸡尾酒 / 枫糖棒）。
+- **每日限次（BATCH-084）**：两档相互独立、各每天最多发 1 次（内存态计数、进日重置、按玩家隔离）；达上限直接跳过、无提示。海泡布丁与 +3 料理退出本渠道（改由 §9.3a 食物助战限量提供）；测试强制 `fish_persisttest` 绕过计数且不计次。
+- ≥60 秒不叠加 30~60 秒的抽奖；奖励进背包（背包满走原生溢出菜单），提示 20 条随机诙谐文案入 FIFO 队列。
 - 测试命令：`fish_persisttest <30|60>`。
 - 钓鱼小游戏期间食物 buff（`id="food"`）计时暂停，退出后恢复走时（BATCH-056；饮料与其他 buff 照常）。
+
+### 9.3a 食物助战（BATCH-084）
+
+在 §4.7 皇冠助战（英文版对应 Assist 章节）之外的独立渠道；不影响原助战概率。
+
+- **日掷骰**：进日掷一次，命中概率 p = (可计数皇冠 ÷ 61) × 0.5（0 皇冠不触发）；结果当日写入玩家存档，读档回滚不得重掷。
+- **周窗口**：周一~周三与周四~周日各上限 1 个（周四重置），每周合计 ≤2；额度尽则当日命中作废。
+- **消费**：当天第一个符合条件的小游戏构造边界——非鱼王、非挑战鱼饵、非节日原生模式；不符合顺延至下一个，全天没有则作废。
+- **发放（小游戏开始边界，原生绿条高度计算之前）**：70% 随机 +3 料理（`(O)242/(O)728/(O)730`）/ 30% 海泡布丁 `(O)265`；命中实例只弹食物文案（i18n `hud.foodassist.{1..10}`，15 秒）。**与皇冠助战互斥（BATCH-084A 方案 A）**——不选护驾鱼、不加临时等级、不出助战文案；其余实例原助战概率照常。
+- **补差 buff（范围 A，仅此渠道）**：当前食物类钓鱼 buff < 奖励档位(+3/+4)时应用所发食物的完整原生食物 buff 组（`Object.GetFoodOrDrinkBuffs()` + `applyBuff`；含龙虾浓汤体力上限 +50）；已有同级或更强只给物品不顶替。
+- **存储**：`FishDifficultyData.FoodAssistDailyState / FoodAssistWindowStamp / FoodAssistWindowUsed`（DifficultyManager 唯一写入者）；旧存档缺省视为未掷/新窗口；GMCM 重置一并清零。
+- 测试命令：`fish_foodassist`（强制下一次符合条件的构造边界按命中处理；不写存档、不占额度）。
+- 奖励池物品 ID 由不变英文名经 `Game1.objectData` 运行期解析（每次启动自动核验当前安装数据；解析失败剔除并记 Warn）。
 
 ### 9.5 停战休息、跳鱼前摇与挑战鱼饵背板（BATCH-058）
 
@@ -381,7 +395,8 @@
 | `fish_bonus [玩家序号]` | 查看收藏皇冠数与鱼竿熟练度 α | `fish_bonus` / `fish_bonus 2` |
 | `fish_assist` | 强制下一次小游戏触发助战（测试） | `fish_assist` |
 | `fish_assiststats [clear]` | 查看/清空助战观测统计（会话内，上限 500） | `fish_assiststats clear` |
-| `fish_persisttest <30\|60>` | 强制下一次小游戏按指定秒数判定持久战奖励（测试） | `fish_persisttest 60` |
+| `fish_persisttest <30\|60>` | 强制下一次小游戏按指定秒数判定持久战奖励（测试；绕过每日计数） | `fish_persisttest 60` |
+| `fish_foodassist` | 强制下一次符合条件的小游戏按食物助战命中处理（测试；不写存档、不占额度） | `fish_foodassist` |
 | `fish_next [玩家序号] <鱼ID>` | 强制下一次钓鱼小游戏为指定鱼（测试；支持玩家序号，BATCH-072） | `fish_next 151` / `fish_next 2 151` |
 | `fish_giveitem [玩家序号] <物品ID> [品质0\|1\|2\|4] [数量]` | 给当前/指定玩家物品（测试） | `fish_giveitem 265 4 10` = 10 个铱星海泡布丁 |
 | `fish_dumpstars` | 导出星星候选贴图区域 PNG 到 `Mods\FishingExpanded\dump`（识图选素材用） | `fish_dumpstars` |
@@ -428,7 +443,7 @@ fish_challengecrown 144 0  # 取消标记
 fish_persisttest 60
 # 找任意非鱼王钓一次并故意失败；再用 fish_persisttest 30 重复一次
 ```
-预期：60 秒档失败必得海泡布丁 ×1（`(O)265`，日志带「测试强制」）；30 秒档失败 50% 得 +3 钓鱼料理之一；两档不叠加；鱼王豁免（日志提示标志被消耗）。
+预期：60 秒档失败 60% 得 +2 钓鱼食物之一（法式田螺/鱼肉卷，日志带「测试强制」）；30 秒档失败 50% 得 +1 钓鱼食物之一（鳟鱼汤/虾鸡尾酒/枫糖棒）；两档不叠加且各自每天限 1 次（测试强制绕过计数）；鱼王豁免（日志提示标志被消耗）。另可用 `fish_foodassist` 验证食物助战发放与补差 buff。
 
 **案例 6：双人/分屏隔离验证**
 ```
@@ -458,7 +473,7 @@ fish_bonus 2               # 核对副机数据
 | 挑战鱼饵数量 | 5 分钟内成功：增产 20%、保底 +2 条（max(⌈N×1.2⌉, N+2)，N=正常渔获；原生多发不再发放，BATCH-082）；超时按正常渔获结算并掉星 −20%/颗（0.8/0.6/0.4，≥95 豁免不掉星，掉星有左下角提示） |
 | 万能鱼饵 | 等级 >0 且原生两条：增产 10%、保底 +1 条（max(⌈N×1.1⌉, N+1)；原生第 2 条不再发放；0 级保留原生双倍，BATCH-082） |
 | 星之果茶 | 声誉 ≥50，概率 等级/400（每次成功独立判定） |
-| 持久战奖励 | 失败 ≥60 秒 → 海泡布丁；30~60 秒 → 50% +3 料理；30 秒巅峰提示 |
+| 持久战奖励 | 失败 ≥60 秒 → 60% +2 食物；30~60 秒 → 50% +1 食物；各每日限 1 次；30 秒巅峰提示 |
 | 蓄力槽保护 | ≤20% → ×0.80，≤1% → ×0.50（全局，非鱼王） |
 | 鱼王豁免 | 五大传奇鱼：全部系统豁免，一次钓获直接给皇冠 |
 | 非鱼类上限 | 等级 8（数量 8 倍封顶，BATCH-062；品质不提升） |
@@ -483,7 +498,7 @@ fish_bonus 2               # 核对副机数据
 - **皇冠 → 手感**：皇冠不再加隐藏钓鱼等级，而是提高鱼竿熟练度 α（0→100%），高 α 下绿条按下即定速、无惯性、撞边钳制，操作更跟手；满 61 可计数皇冠后小游戏体验最顺。
 - **全皇冠顺序**：56 条原生普通真鱼 + 5 条传奇鱼；Mod 鱼皇冠只显示不计 α，别先刷 Mod 鱼。
 - **挑战鱼饵的正确用法**：只对调整后难度 >100 的鱼生效，且目标是把该鱼声誉刷到 ≥95——成功后皇冠升级流光溢彩；超时只损失数量，皇冠照拿，可以慢慢磨。
-- **力竭是双刃剑**：高难度鱼拖过 15 分钟会降到 80 难度（更易钓），但奖励按开局快照结算，不掉收益；持久战失败还有海泡布丁/料理保底。
+- **力竭是双刃剑**：高难度鱼拖过 15 分钟会降到 80 难度（更易钓），但奖励按开局快照结算，不掉收益；持久战失败还有 +1/+2 食物保底（每日各一次）。
 - **星之果茶**是等级 50 后的稳定副产：100 级鱼每 4 次成功期望 1 瓶。
 - **巨型鱼展示**是限时“战利品”：进家门即失效，想给村民看鱼就钓到后立刻举着逛。
 - 触底（-10）后再失败会得到完整升级建议，提示你该换鱼竿/鱼饵/料理。
@@ -772,7 +787,7 @@ Angler (159), Mutant Carp (682), Glacierfish (775), Crimsonfish (163), Legend (1
 ### 9.2 Non-Fish Items (Category ≠ -4)
 
 - Range [−10, 8]; successes past 8 add nothing further (underlying stats hold at 8).
-- **Level-ups are now probabilistic (BATCH-078)**: each haul requests +1 level but only a **5%** chance is granted (`NonFishLevelUpChance`); a missed roll still records the success event (fail-streak cleared, star check runs; `SuccessCount` keeps its cumulative-growth semantics and adds 0) and can pop a light consolation hint at 20% (`hud.trashMiss.{1..20}`). Rod-direct trash and crab pots share the same rule.
+- **Level-ups are now probabilistic (BATCH-078)**: each haul requests +1 level but only a **5%** chance is granted (`NonFishLevelUpChance`); a missed roll still records the success event (fail-streak cleared, star check runs; `SuccessCount` keeps its cumulative-growth semantics and adds 0) and can pop a light consolation hint at **10%** (`hud.trashMiss.{1..20}`). **BATCH-085: 20%→10%, and the hint is dropped entirely while another mod hint is on screen or queued** (read-only check `HUDNotifier.PlayerHasPendingOrActiveMessage`; level-up prompts and the level-8 cap line bypass this gate). Rod-direct trash and crab pots share the same rule.
 - **Quantity uses an exclusive anchor curve (BATCH-078)**: `(0,1) (8,8)` linear expectation + the same fractional-roll smoothing (negatives clamp to 1; e.g. level 4 expectation 4.5 → 45% chance of 5); plus its own income slider `NoMinigameQuantityIncomePercent` (see §Config).
 - Quality computes at level 8 (threshold 10 unreachable → never raised).
 - Past-cap successes show the "emperor" line for the item.
@@ -802,15 +817,29 @@ In vanilla-festival mode none of the three apply; quantity tooltips render the l
 - Challenge bait: **no decay** (effective stays at opening value) but node tips still appear with an extra random quip.
 - Each node posts one random witty tip (i18n `hud.exhaust.{1|3|5|7|9|12|15}.{1..10}`).
 
-### 9.4 Perseverance Rewards (BATCH-039)
+### 9.4 Perseverance Rewards (BATCH-039; BATCH-084 nerf & daily caps)
 
 - Battle seconds accumulate across all non-legendary minigames (pause/menus excluded; legendaries inherently excluded).
 - **At 30s exactly**: single peak tip in the other-tips channel (one of 10 sets).
-- **Fail at ≥60s**: guaranteed Seafoam Pudding ×1 (`(O)265`, fishing +4).
-- **30–60s fail**: 50% chance of one of the three +3 fishing dishes (`(O)242` / `(O)728` / `(O)730`; BATCH-052 correction: 228 is actually Maki Roll, not a fishing dish).
+- **Fail at ≥60s**: 60% chance of one +2 fishing food (Escargot / Fish Taco); otherwise nothing.
+- **30–60s fail**: 50% chance of one +1 fishing food (Trout Soup / Shrimp Cocktail / Maple Bar).
+- **Daily caps (BATCH-084)**: the two tiers are independent, each at most once per day (in-memory counters, reset at day start, per player); at cap the roll is skipped silently. Seafoam Pudding and the +3 dishes left this channel (moved to §9.3a Fish Assist); forced `fish_persisttest` bypasses the caps and doesn't count.
 - The 60s reward doesn't stack the 30s roll; rewards go to inventory (overflow menu when full) with 20 random humor lines into the FIFO queue.
 - Test command: `fish_persisttest <30|60>`.
 - During the minigame, food buffs (`id="food"`) pause; resumes on exit (BATCH-056; drinks and others run normally).
+
+### 9.3a Fish Assist (BATCH-084)
+
+A separate channel alongside the crown assist; does not affect original assist odds.
+
+- **Daily roll**: rolled once at day start, p = (countable crowns ÷ 61) × 0.5 (0 crowns never hits); the result is written to the player's save that day — reloading cannot reroll it.
+- **Weekly windows**: Mon–Wed and Thu–Sun each cap 1 grant (Thursday resets), ≤2 per week; a hit while the window is exhausted is voided.
+- **Consumption**: the first eligible minigame construction that day — non-legendary, no challenge bait, not vanilla-festival mode; otherwise deferred to the next eligible one, voided if none remains.
+- **Grant (at construction start, before the native bar-height math)**: 70% one random +3 dish (`(O)242/(O)728/(O)730`) / 30% Seafoam Pudding `(O)265`; the hit fight shows only a food tip line (i18n `hud.foodassist.{1..10}`, 15s). **Mutually exclusive with the crown assist (BATCH-084A, option A)** — no helper fish, no temp level, no assist line; every other fight keeps the original crown-assist odds.
+- **Catch-up buff (scope A, this channel only)**: when the player's current food fishing buff < reward tier (+3/+4), applies the granted food's full native food-buff set via `Object.GetFoodOrDrinkBuffs()` + `applyBuff` (incl. Lobster Bisque's max-energy +50); equal or stronger → item only, never replaces.
+- **Storage**: `FishDifficultyData.FoodAssistDailyState / FoodAssistWindowStamp / FoodAssistWindowUsed` (DifficultyManager sole writer); old saves default to unrolled/new window; GMCM reset clears them too.
+- Test command: `fish_foodassist` (forces the next eligible construction as a hit; writes no roll state, uses no quota).
+- Pool item IDs resolve at runtime from invariant English names via `Game1.objectData` (auto-verifies installed data every launch; failures drop the item with a Warn).
 
 ### 9.5 Truce, Jump Wind-Up & Pattern Seeds (BATCH-058)
 
@@ -880,13 +909,14 @@ All config keys (edit `config.json` manually without GMCM; the keys below all ha
 | `fish_bonus [playerIdx]` | Show crown count and rod proficiency α | `fish_bonus` / `fish_bonus 2` |
 | `fish_assist` | Force the next minigame to trigger assist (testing) | `fish_assist` |
 | `fish_assiststats [clear]` | View/clear assist observation stats (session-scoped, cap 500) | `fish_assiststats clear` |
-| `fish_persisttest <30\|60>` | Force perseverance judgment at the given seconds (testing) | `fish_persisttest 60` |
+| `fish_persisttest <30\|60>` | Force perseverance judgment at the given seconds (testing; bypasses daily caps) | `fish_persisttest 60` |
+| `fish_foodassist` | Force the next eligible construction as a Fish Assist hit (testing; writes no save state, uses no quota) | `fish_foodassist` |
 | `fish_next [playerIdx] <fishId>` | Force the next minigame's fish (testing; player index supported, BATCH-072) | `fish_next 151` / `fish_next 2 151` |
 | `fish_giveitem [playerIdx] <itemId> [quality 0\|1\|2\|4] [count]` | Grant an item (testing) | `fish_giveitem 265 4 10` = 10 iridium Seafoam Puddings |
 | `fish_dumpstars` | Export candidate star-texture regions to `Mods\FishingExpanded\dump` (for asset picking) | `fish_dumpstars` |
 | `fish_selftest` | Read-only self-test (levels/countable crowns/assist distribution/log gating/XP clamp & curves…) | `fish_selftest` |
 
-Eighteen commands total. Data/query commands accept an optional leading player index (1=host, 2=first farmhand, …, from `Game1.getAllFarmers()`; omitted = current player, BATCH-045); assist/persisttest/selftest/dumpstars have no index.
+Nineteen commands total. Data/query commands accept an optional leading player index (1=host, 2=first farmhand, …, from `Game1.getAllFarmers()`; omitted = current player, BATCH-045); assist/persisttest/foodassist/selftest/dumpstars have no index.
 
 ### Debug Scenarios (scenario → command sequence → expectation)
 
@@ -929,7 +959,7 @@ Expect: the flag applies/clears instantly; that crown renders as flowing gold. R
 fish_persisttest 60
 # fail any non-legendary catch on purpose; repeat with fish_persisttest 30
 ```
-Expect: the 60s tier guarantees Seafoam Pudding ×1 (`(O)265`, log carries "forced"); the 30s tier fails into a 50% chance of one +3 fishing dish; tiers don't stack; legendaries are exempt (log notes the flag being consumed).
+Expect: the 60s tier fails into a 60% chance of one +2 fishing food (Escargot/Fish Taco, log carries "forced"); the 30s tier fails into a 50% chance of one +1 fishing food (Trout Soup/Shrimp Cocktail/Maple Bar); tiers don't stack and each is capped once per day (forced tests bypass caps); legendaries are exempt (log notes the flag being consumed). Use `fish_foodassist` to verify the Fish Assist grant and catch-up buff.
 
 **Case 6: split-screen / co-op isolation**
 ```
@@ -959,7 +989,8 @@ Expect: everything is isolated by `UniqueMultiplayerID`; host and farmhands neve
 | Challenge bait counts | ≤5:00: +20% catch, +2 floor (max(⌈N×1.2⌉, N+2), N = normal catch; native extras replaced, BATCH-082); overtime: normal catch N, then −20%/lost star (0.8/0.6/0.4, ≥95 exempt from star loss, HUD notice) |
 | Wild bait | Level >0 and native pair: +10% catch, +1 floor (max(⌈N×1.1⌉, N+1); vanilla double kept at level 0; BATCH-082) |
 | Starfruit Tea | Reputation ≥50, chance reputation/400 (independent per success) |
-| Perseverance | Fail ≥60s → Seafoam Pudding; 30–60s → 50% +3 dish; peak tip at 30s |
+| Perseverance | Fail ≥60s → 60% +2 food; 30–60s → 50% +1 food; each capped once/day; peak tip at 30s |
+| Fish Assist (BATCH-084) | Daily roll p=(crowns/61)×0.5; Mon–Wed & Thu–Sun windows cap 1 each (≤2/week); on hit, first eligible fight grants 70% +3 dish / 30% Seafoam Pudding plus catch-up buff and force-triggers the crown assist |
 | Bar protection | ≤20% → ×0.80, ≤1% → ×0.50 (global, non-legendary) |
 | Legendary exemption | Five legends: exempt from everything, crown on first catch |
 | Non-fish cap | Level 8 (quantity 8× capped, BATCH-062; quality never raised) |

@@ -6,6 +6,22 @@
 ---
 
 ## ENGLISH
+## 1.0.3
+
+### Fixes
+- **Quieter no-minigame hauling**: the light consolation hint shown when a trash/algae/crab-pot haul misses its level-up roll now appears at **10%** (was 20%) and is **suppressed entirely whenever another mod hint is on screen or waiting in the queue**. Collecting a crab-pot farm in one go no longer chains hints together. Level-up prompts ("next time you'll challenge …") and the level-8 Emperor line are unchanged and still appear as before.
+
+## 1.0.2
+
+### New Feature
+- **Full official-language support**: the mod now ships translations for **all 11 languages the game supports** — English, Japanese, Russian, Spanish, Brazilian Portuguese, French, German, Italian, Hungarian, Korean, Turkish and Simplified Chinese. SMAPI picks the right file automatically; missing keys fall back to English.
+- **Fish Assist**: once per in-game day the mod rolls a chance of `(collection crowns ÷ 61) × 50%` for a **Fish Assist**. On a hit, that day's first eligible fight (non-legendary, no challenge bait) grants a bonus dish — **70%** one of Dish O' The Sea / Fish Stew / Lobster Bisque (+3 fishing), **30%** Seafoam Pudding (+4 fishing) — plus a catch-up fishing buff when your current food buff is weaker than the dish. The item lands as the fight opens, so the bigger bar helps immediately.
+- **Weekly caps, no save-scumming**: one grant Monday–Wednesday and one Thursday–Sunday (≤2 per week); the daily roll result is written into the save, so reloading cannot reroll it. Missed days don't stack.
+- **Mutually exclusive with the crown assist**: a hit fight shows only the food gift (with its own tip line); every other fight keeps the original crown-assist odds untouched.
+
+### Balance
+- **Perseverance rewards nerfed & capped**: failing a 30–60 s fight still has a 50% chance to drop a consolation, now a random **+1 fishing food** (Trout Soup / Shrimp Cocktail / Maple Bar); failing at ≥60 s has a 60% chance of a random **+2 fishing food** (Escargot / Fish Taco). Each tier can drop **at most once per day**. Seafoam Pudding and the +3 dishes left this channel entirely — they now come only from Fish Assist — closing the "stall 60 seconds and fail on purpose" farming loop.
+
 ## 1.0.1
 
 ### Fixes
@@ -92,6 +108,22 @@
 ---
 
 ## 中文
+## 1.0.3
+
+### 修复
+- **无小游戏收获更安静**：垃圾/藻类/蟹笼收获未中升级掷签时的通用轻提示，概率由 **20% 降为 10%**，并且当屏幕上已有别的本模组提示、或队列里还排着提示时**完全不弹**。一次性收完整片蟹笼不会再连环弹提示。升级提示（“下一次你将向…发起挑战”）与 8 级“帝王”封顶文案保持原样、照常出现。
+
+## 1.0.2
+
+### 新功能
+- **官方全语言支持**：模组现随包提供游戏支持的全部 **11 种语言**翻译——英语、日语、俄语、西班牙语、巴西葡萄牙语、法语、德语、意大利语、匈牙利语、韩语、土耳其语与简体中文。SMAPI 会自动选择对应文件；缺失条目回退英语。
+- **食物助战**：每个游戏日内掷骰一次，命中概率 =（收藏皇冠数 ÷ 61）× 50%。命中的当天，第一个符合条件的小游戏（非鱼王、非挑战鱼饵）会送出一份加成料理——**70%** 为海之菜肴/烩鱼汤/龙虾浓汤之一（钓鱼+3），**30%** 为海泡布丁（钓鱼+4）；若你当前的食物钓鱼 buff 低于料理档位，还会按该料理补上等档位的钓鱼 buff。物品在战斗开始瞬间入包，绿条当场受益。
+- **每周限量、读档无效**：周一~周三与周四~周日各限 1 次（每周合计 ≤2）；当日掷骰结果写入存档，读档回滚无法重掷；错过不累计。
+- **与皇冠助战互斥**：命中局只出食物赠礼（带专属提示文案）；其余小游戏的皇冠助战概率完全不受影响。
+
+### 数值调整
+- **持久战奖励降档并每日限次**：30~60 秒失败仍有 50% 概率获得安慰奖，改为随机 **+1 钓鱼食物**之一（鳟鱼汤/虾鸡尾酒/枫糖棒）；≥60 秒失败有 60% 概率获得随机 **+2 钓鱼食物**之一（法式田螺/鱼肉卷）。两档各自每天最多一次。海泡布丁与 +3 料理彻底退出该渠道——只能通过食物助战获取，"拖满 60 秒故意失败"的刷取路径被关闭。
+
 ## 1.0.1
 
 ### 修复

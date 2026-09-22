@@ -344,12 +344,23 @@ namespace FishingExpanded.Services
             }
         }
 
-        /// <summary>BATCH-078: 无小游戏物品升级掷签未中的轻量提示——20% 概率弹出；文案池 20 条，
-        /// 全部为不含鱼类量词的通用表述（垃圾/藻类/蟹笼收获均适用）；键缺失时静默跳过。</summary>
+        /// <summary>BATCH-078: 无小游戏物品（垃圾/藻类/蟹笼收获）升级掷签未中的轻量提示；文案池 20 条，
+        /// 全部为不含鱼类量词的通用表述；键缺失时静默跳过。
+        /// BATCH-085（2026-09-22 用户定稿）：①触发概率由调用方按 `NonFishLevelMissHintChance`（20%→10%）判定；
+        /// ②本条为"可有可无的安慰语"，故在本唯一所有者内加忙时闸门——该玩家屏幕上已有本模组提示或队列非空时
+        /// 直接丢弃（不挑选/不消耗文案索引、不入队），避免连续收获时刷屏；升级与封顶提示不经过本闸门。</summary>
         public static void ShowTrashMissHint()
         {
             try
             {
+                if (PlayerHasPendingOrActiveMessage(Game1.player))
+                {
+                    FishingLog.Log(
+                        "[HUDNotifier] 无小游戏物品未升级轻提示跳过：该玩家已有提示在显示或排队",
+                        StardewModdingAPI.LogLevel.Debug);
+                    return;
+                }
+
                 int index = Game1.random.Next(1, 21);
                 string key = $"hud.trashMiss.{index}";
                 var translation = ModEntry.ModHelper.Translation.Get(key);
@@ -363,6 +374,36 @@ namespace FishingExpanded.Services
             catch (Exception ex)
             {
                 FishingLog.Log($"无小游戏物品未升级轻提示失败: {ex}", StardewModdingAPI.LogLevel.Error);
+            }
+        }
+
+        /// <summary>BATCH-085: 该玩家是否已有本模组提示正在显示，或其队列中还有未播提示（只读查询，供
+        /// "忙时不弹"闸门与只读自检使用）。查询时顺带清理已从原生 `hudMessages` 消失的陈旧活动记录，
+        /// 避免 `ProcessQueue` 尚未跑到时把提示多挡一个驱动周期（≤0.25 秒）。</summary>
+        public static bool PlayerHasPendingOrActiveMessage(Farmer player)
+        {
+            if (player == null)
+                return false;
+            try
+            {
+                long playerId = player.UniqueMultiplayerID;
+
+                if (ActiveMessageText.TryGetValue(playerId, out string activeText) &&
+                    !string.IsNullOrEmpty(activeText))
+                {
+                    bool stillVisible = Game1.hudMessages != null &&
+                        Game1.hudMessages.Any(m => m != null && m.message != null && m.message == activeText);
+                    if (stillVisible)
+                        return true;
+                    ActiveMessageText.Remove(playerId);
+                }
+
+                return PendingByPlayer.TryGetValue(playerId, out Queue<HUDMessage> queue) && queue.Count > 0;
+            }
+            catch (Exception ex)
+            {
+                FishingLog.Log($"HUD 提示忙闲查询失败: {ex}", StardewModdingAPI.LogLevel.Error);
+                return false;
             }
         }
 

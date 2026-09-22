@@ -1,6 +1,6 @@
 # Fishing Expanded — Nexus Release Guide (Bilingual)
 
-> Target: publish `FishingExpanded 1.0.0` to Nexus Mods, ID `50595`.
+> Target: publish `FishingExpanded 1.0.3` to Nexus Mods, ID `50595`.
 > Bilingual: English full first, then Chinese full. Follow the steps in order and tick each check item.
 
 ---
@@ -12,7 +12,7 @@
 - [ ] In `Source\manifest.json`:
   - `UniqueID` = `neoiw.FishingExpanded`
   - `UpdateKeys` = `["Nexus:50595"]`
-  - `Version` = `1.0.0`
+  - `Version` = `1.0.3`
 - [ ] `LICENSE` (GPL-3.0) exists at the project root.
 - [ ] Player wiki and page copy are ready (`Release\NEXUS-PAGE-CONTENT.md`, `Release\PLAYER-WIKI-NEXUS-BBCODE.txt`, `Release\PLAYER-WIKI-NEXUS.html`).
 - [ ] At least one smoke test on a real save (recommended: normal fishing, high-difficulty fish, challenge bait, collection crowns, save reload, and co-op/split-screen if possible).
@@ -45,13 +45,23 @@ Check:
 Use this exact structure (the outer folder MUST be named `FishingExpanded`):
 
 ```
-FishingExpanded-1.0.0.zip
+FishingExpanded-1.0.3.zip
 └── FishingExpanded/
     ├── FishingExpanded.dll
     ├── manifest.json
     ├── i18n/
-    │   ├── default.json
-    │   └── zh.json
+    │   ├── default.json      （英语）
+    │   ├── zh.json           （简体中文）
+    │   ├── ja.json           （日语）
+    │   ├── ru.json           （俄语）
+    │   ├── es.json           （西班牙语）
+    │   ├── pt.json           （巴西葡萄牙语）
+    │   ├── fr.json           （法语）
+    │   ├── de.json           （德语）
+    │   ├── it.json           （意大利语）
+    │   ├── hu.json           （匈牙利语）
+    │   ├── ko.json           （韩语）
+    │   └── tr.json           （土耳其语）
     ├── LICENSE
     └── README.txt
 ```
@@ -80,15 +90,15 @@ Open `Release\NEXUS-PAGE-CONTENT.md` and copy by table:
 
 ## 5. Upload the File
 
-Upload `FishingExpanded-1.0.0.zip` and fill in:
+Upload `FishingExpanded-1.0.3.zip` and fill in:
 
 | Field | Value |
 |---|---|
-| Mod version | 1.0.0 |
+| Mod version | 1.0.3 |
 | Game version | 1.6 (or 1.6+ if required) |
 | SMAPI version | 4.0.0+ (if present) |
-| File name | `FishingExpanded-1.0.0.zip` |
-| Changelog | Paste the 1.0.0 section from `Release\CHANGELOG.md` |
+| File name | `FishingExpanded-1.0.3.zip` |
+| Changelog | Paste the 1.0.3 section from `Release\CHANGELOG.md` |
 
 ## 6. Upload Images / Videos
 
@@ -113,7 +123,7 @@ Follow the screenshot checklist in `NEXUS-PAGE-CONTENT.md`:
 1. Save the page, then click **Publish Mod**.
 2. After publishing, open your page logged OUT to check title, summary, description rendering, images, and the download button.
 3. Download your uploaded zip, install into a clean `Mods` folder, and launch with SMAPI once. Confirm:
-   - SMAPI log shows `Fishing Expanded 1.0.0` loaded
+   - SMAPI log shows `Fishing Expanded 1.0.3` loaded
    - No red errors
    - `UpdateKeys` reports no problem
 4. If anything is wrong, hide the version or mark it as outdated on Nexus; do not leave a broken file.
@@ -143,7 +153,7 @@ Follow the screenshot checklist in `NEXUS-PAGE-CONTENT.md`:
 - [ ] `Source\manifest.json` 已更新：
   - `UniqueID` = `neoiw.FishingExpanded`
   - `UpdateKeys` = `["Nexus:50595"]`
-  - `Version` = `1.0.0`
+  - `Version` = `1.0.3`
 - [ ] 项目根目录已有 `LICENSE`（GPL-3.0）。
 - [ ] 玩家 Wiki 和页面文案已准备好（`Release\NEXUS-PAGE-CONTENT.md`、`Release\PLAYER-WIKI-NEXUS-BBCODE.txt`、`Release\PLAYER-WIKI-NEXUS.html`）。
 - [ ] 已在真实存档做过至少一次冒烟测试（建议：普通钓鱼、高难鱼、挑战鱼饵、图鉴皇冠、存档重载、双人/联机如果条件允许）。
@@ -176,13 +186,23 @@ D:\GGGGG\FishingExpanded\Source\bin\Release\net6.0
 请使用以下精确结构（外层文件夹名必须是 `FishingExpanded`）：
 
 ```
-FishingExpanded-1.0.0.zip
+FishingExpanded-1.0.3.zip
 └── FishingExpanded/
     ├── FishingExpanded.dll
     ├── manifest.json
     ├── i18n/
-    │   ├── default.json
-    │   └── zh.json
+    │   ├── default.json      （英语）
+    │   ├── zh.json           （简体中文）
+    │   ├── ja.json           （日语）
+    │   ├── ru.json           （俄语）
+    │   ├── es.json           （西班牙语）
+    │   ├── pt.json           （巴西葡萄牙语）
+    │   ├── fr.json           （法语）
+    │   ├── de.json           （德语）
+    │   ├── it.json           （意大利语）
+    │   ├── hu.json           （匈牙利语）
+    │   ├── ko.json           （韩语）
+    │   └── tr.json           （土耳其语）
     ├── LICENSE
     └── README.txt
 ```
@@ -211,15 +231,15 @@ FishingExpanded-1.0.0.zip
 
 ## 5. 上传文件
 
-上传 `FishingExpanded-1.0.0.zip`，填写：
+上传 `FishingExpanded-1.0.3.zip`，填写：
 
 | 字段 | 值 |
 |---|---|
-| Mod version | 1.0.0 |
+| Mod version | 1.0.3 |
 | Game version | 1.6（或按要求填 1.6+） |
 | SMAPI version | 4.0.0+（若该字段存在） |
-| File name | `FishingExpanded-1.0.0.zip` |
-| Changelog | 粘贴 `Release\CHANGELOG.md` 中 1.0.0 的内容 |
+| File name | `FishingExpanded-1.0.3.zip` |
+| Changelog | 粘贴 `Release\CHANGELOG.md` 中 1.0.3 的内容 |
 
 ## 6. 上传图片 / 视频
 
@@ -247,7 +267,7 @@ FishingExpanded-1.0.0.zip
    - 图片正常显示
    - 下载按钮可用
 3. 下载你上传的 zip，解压到干净 `Mods` 目录，用 SMAPI 启动一次，确认：
-   - SMAPI 日志显示 `Fishing Expanded 1.0.0` 加载成功
+   - SMAPI 日志显示 `Fishing Expanded 1.0.3` 加载成功
    - 没有红色 error
    - `UpdateKeys` 未报错
 4. 如果发现问题，先在 N 网隐藏版本或标记为旧版，不要留着坏包。

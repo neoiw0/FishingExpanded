@@ -23,6 +23,10 @@ namespace FishingExpanded
         // BATCH-039: 测试命令 fish_persisttest 强制下一次钓鱼小游戏按指定秒数发放持久战奖励（薄控制，构造边界消费）
         private static int? _forcePerseveranceSeconds;
 
+        // BATCH-084: 测试命令 fish_foodassist 强制下一次符合条件的小游戏按"食物助战命中"处理（薄控制；
+        // 构造边界消费；不写存档掷骰结果、不占窗口额度）
+        private static bool _forceFoodAssistNext;
+
         // BATCH-072: 测试命令 fish_next 强制下一次钓鱼小游戏为指定鱼（薄控制；按玩家隔离；构造边界消费；不写存档）
         private static readonly Dictionary<long, string> _forcedNextFishByPlayer = new Dictionary<long, string>();
 
@@ -121,6 +125,7 @@ namespace FishingExpanded
             Patches.CrabPotPatches.ClearPending(); // BATCH-065: 返回标题清空蟹笼待结算
             GiantFishManager.ResetForSave();
             ClearForceNextFish(); // BATCH-072: 强制鱼种为会话态，返回标题清除，避免跨存档泄漏
+            _forceFoodAssistNext = false; // BATCH-084: 食物助战测试标志同为会话态，避免跨存档泄漏
             FishingLog.Log("已清除 FishingExpanded 当前玩家缓存", LogLevel.Debug);
         }
 
@@ -130,6 +135,8 @@ namespace FishingExpanded
             FishingLog.Log($"=== FishingExpanded 新的一天开始 (Day {Game1.dayOfMonth}) ===", LogLevel.Info);
             GiantFishManager.OnDayStarted();
             DifficultyManager.ResetDailyHarvest(); // BATCH-061: 每日收获限额按游戏日重置（内存态）
+            DifficultyManager.ResetDailyPerseverance(); // BATCH-084: 持久战失败奖励每日限次重置（内存态）
+            Services.FoodAssistService.OnDayStarted(Game1.player); // BATCH-084: 食物助战窗口维护+进日掷骰（写存档）
         }
 
         /// <summary>每帧更新（性能优化：使用计数器，增加检查间隔）</summary>
@@ -491,8 +498,12 @@ namespace FishingExpanded
                 OnCommandChallengeCrown);
 
             Helper.ConsoleCommands.Add("fish_persisttest",
-                "强制下一次钓鱼小游戏失败时按指定秒数发放持久战奖励(测试)| 用法: fish_persisttest <30|60>",
+                "强制下一次钓鱼小游戏失败时按指定秒数判定持久战奖励(测试)| 用法: fish_persisttest <30|60>",
                 OnCommandPerseveranceTest);
+
+            Helper.ConsoleCommands.Add("fish_foodassist",
+                "强制下一次符合条件的小游戏按食物助战命中处理(测试，不占每日/每周额度)| 用法: fish_foodassist",
+                OnCommandFoodAssist);
 
             Helper.ConsoleCommands.Add("fish_next",
                 "强制下一次钓鱼小游戏为指定鱼(测试)| 用法: fish_next [玩家序号] <鱼ID>(1=主机, 2=副机…)",
@@ -756,6 +767,14 @@ namespace FishingExpanded
             return forced;
         }
 
+        /// <summary>BATCH-084: 消费强制食物助战标志（BobberBar 构造边界调用；一次消费后清除）。</summary>
+        public static bool ConsumeForceFoodAssistFlag()
+        {
+            bool forced = _forceFoodAssistNext;
+            _forceFoodAssistNext = false;
+            return forced;
+        }
+
         /// <summary>BATCH-039: 消费强制持久战秒数（BobberBar 构造边界调用；一次消费后清除；0=未强制）。</summary>
         public static float ConsumeForcePerseveranceSeconds()
         {
@@ -839,13 +858,21 @@ namespace FishingExpanded
             if (args.Length < 1 || !int.TryParse(args[0], out int seconds) || (seconds != 30 && seconds != 60))
             {
                 FishingLog.Log("用法: fish_persisttest <30|60>", LogLevel.Info);
-                FishingLog.Log("例如: fish_persisttest 60  (下一次小游戏失败时按 60 秒必发海泡布丁)", LogLevel.Info);
+                FishingLog.Log("例如: fish_persisttest 60  (下一次小游戏失败时按 60 秒判定 60% 获得 +2 钓鱼食物)", LogLevel.Info);
                 return;
             }
 
             _forcePerseveranceSeconds = seconds;
-            FishingLog.Log($"✓ 下一次钓鱼小游戏失败时将按 {seconds} 秒发放持久战奖励(30 秒=50% +3 料理；60 秒=必得海泡布丁)", LogLevel.Info);
-            FishingLog.Log("提示: 鱼王小游戏豁免奖励，强制标志会被鱼王豁免消耗", LogLevel.Info);
+            FishingLog.Log($"✓ 下一次钓鱼小游戏失败时将按 {seconds} 秒判定持久战奖励(BATCH-084: 30 秒=50% +1 食物；60 秒=60% +2 食物)", LogLevel.Info);
+            FishingLog.Log("提示: 两档各自每天限 1 次；测试强制绕过每日计数且不计次；鱼王小游戏豁免奖励", LogLevel.Info);
+        }
+
+        /// <summary>BATCH-084: 强制下一次符合条件的小游戏按"食物助战命中"处理（薄控制测试命令；构造边界消费；不写存档、不占窗口额度）。</summary>
+        private void OnCommandFoodAssist(string command, string[] args)
+        {
+            _forceFoodAssistNext = true;
+            FishingLog.Log("✓ 下一次符合条件(非鱼王/非挑战鱼饵/非节日原生模式)的钓鱼小游戏将按食物助战命中处理：发放 70% +3 料理 / 30% 海泡布丁并尝试补差 buff", LogLevel.Info);
+            FishingLog.Log("提示: 测试强制不写入当日掷骰结果、不占用本周窗口额度；正常渠道仍按进日掷骰结算", LogLevel.Info);
         }
 
         /// <summary>BATCH-072: 强制指定玩家的下一次钓鱼小游戏鱼种（薄控制测试命令；构造边界消费；不写存档）。</summary>
@@ -1291,6 +1318,44 @@ namespace FishingExpanded
             string clearedNext = ConsumeForceNextFish(Game1.player);
             Report("强制鱼种标志: 空闲null→置位(O)151→消费→清除null", idleNext == null && consumedNext == "(O)151" && clearedNext == null);
 
+            // 10a. BATCH-084: 食物助战标志生命周期（薄控制，不写存档）
+            bool idleFood = ConsumeForceFoodAssistFlag();
+            _forceFoodAssistNext = true;
+            bool consumedFood = ConsumeForceFoodAssistFlag();
+            bool clearedFood = !ConsumeForceFoodAssistFlag();
+            Report("食物助战标志: 空闲false→置位→消费true→清除false", !idleFood && consumedFood && clearedFood);
+
+            // 10b. BATCH-084: 食物助战概率与窗口纯函数（只读）
+            Report("食物助战p: 0皇冠=0", Utils.DifficultyCalculator.GetFoodAssistDailyChance(0, 61) == 0.0,
+                $"实际 {Utils.DifficultyCalculator.GetFoodAssistDailyChance(0, 61):P1}");
+            Report("食物助战p: 61皇冠=50%", Math.Abs(Utils.DifficultyCalculator.GetFoodAssistDailyChance(61, 61) - 0.5) < 1e-9,
+                $"实际 {Utils.DifficultyCalculator.GetFoodAssistDailyChance(61, 61):P1}");
+            Report("食物助战p: 30皇冠=30/61×50%", Math.Abs(Utils.DifficultyCalculator.GetFoodAssistDailyChance(30, 61) - 30.0 / 61.0 * 0.5) < 1e-9,
+                $"实际 {Utils.DifficultyCalculator.GetFoodAssistDailyChance(30, 61):P3}");
+            Report("窗口重置日: 周一/周四=true 周三/周日=false",
+                Utils.DifficultyCalculator.IsFoodAssistWindowResetDay(DayOfWeek.Monday) &&
+                Utils.DifficultyCalculator.IsFoodAssistWindowResetDay(DayOfWeek.Thursday) &&
+                !Utils.DifficultyCalculator.IsFoodAssistWindowResetDay(DayOfWeek.Wednesday) &&
+                !Utils.DifficultyCalculator.IsFoodAssistWindowResetDay(DayOfWeek.Sunday));
+            Report("窗口戳: 周一起点=当日", Utils.DifficultyCalculator.GetFoodAssistWindowStamp(100, DayOfWeek.Monday) == 100,
+                $"实际 {Utils.DifficultyCalculator.GetFoodAssistWindowStamp(100, DayOfWeek.Monday)}");
+            Report("窗口戳: 周三归属周一戳(98)", Utils.DifficultyCalculator.GetFoodAssistWindowStamp(100, DayOfWeek.Wednesday) == 98,
+                $"实际 {Utils.DifficultyCalculator.GetFoodAssistWindowStamp(100, DayOfWeek.Wednesday)}");
+            Report("窗口戳: 周四起点=当日", Utils.DifficultyCalculator.GetFoodAssistWindowStamp(100, DayOfWeek.Thursday) == 100,
+                $"实际 {Utils.DifficultyCalculator.GetFoodAssistWindowStamp(100, DayOfWeek.Thursday)}");
+            Report("窗口戳: 周日归属周四戳(97)", Utils.DifficultyCalculator.GetFoodAssistWindowStamp(100, DayOfWeek.Sunday) == 97,
+                $"实际 {Utils.DifficultyCalculator.GetFoodAssistWindowStamp(100, DayOfWeek.Sunday)}");
+
+            // 10c. BATCH-084: i18n 键（10 条食物助战文案）与奖励池解析
+            int foodAssistKeys = 0;
+            for (int i = 1; i <= 10; i++)
+            {
+                string v = ModHelper.Translation.Get($"hud.foodassist.{i}");
+                if (!string.IsNullOrWhiteSpace(v) && v != $"hud.foodassist.{i}") foodAssistKeys++;
+            }
+            Report("i18n: hud.foodassist.1~10", foodAssistKeys == 10, $"{foodAssistKeys}/10");
+            Report("奖励池: 三类池全部解析可用(详见启动日志[ BATCH-084 ]行)", Services.FoodAssistService.IsAvailable);
+
             // 10. BATCH-040: 日志开关与限频缓存（只读自测，不写日志缓存）
             bool cfgLogging = Config?.EnableLogging ?? true;
             Report("日志: config 开关与日志门一致", FishingLog.Enabled == cfgLogging,
@@ -1395,8 +1460,12 @@ namespace FishingExpanded
                 $"实际 {DifficultyManager.TrainingRodLevelCap}");
             Report("掷签: 非鱼升级率=5%", Math.Abs(DifficultyManager.NonFishLevelUpChance - 0.05) < 1e-9,
                 $"实际 {DifficultyManager.NonFishLevelUpChance}");
-            Report("掷签: 未中提示率=20%", Math.Abs(DifficultyManager.NonFishLevelMissHintChance - 0.20) < 1e-9,
+            Report("掷签: 未中提示率=10%", Math.Abs(DifficultyManager.NonFishLevelMissHintChance - 0.10) < 1e-9,
                 $"实际 {DifficultyManager.NonFishLevelMissHintChance}");
+            // BATCH-085: 忙时闸门为只读查询——空闲（无活动提示且队列为空）时允许弹；忙碌判定见
+            // HUDNotifier.PlayerHasPendingOrActiveMessage（实机场景由集中测试第 2 项覆盖）。
+            Report("轻提示门: 空闲无提示可弹", !HUDNotifier.PlayerHasPendingOrActiveMessage(Game1.player),
+                $"实际 有提示显示或排队? {HUDNotifier.PlayerHasPendingOrActiveMessage(Game1.player)}");
             Report("训练竿: 3级+1不触发封顶", !DifficultyManager.WouldTrainingCapTrigger(3, 1, false),
                 $"实际 {DifficultyManager.WouldTrainingCapTrigger(3, 1, false)}");
             Report("训练竿: 3级+5触发封顶", DifficultyManager.WouldTrainingCapTrigger(3, 5, false),

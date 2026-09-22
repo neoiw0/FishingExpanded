@@ -936,7 +936,8 @@ namespace FishingExpanded.Patches
                          newLevel >= Utils.SpecialFishHelper.GetMaxLevelForNonFish())
                     HUDNotifier.ShowSuccessNotification(fishId, newLevel, oldLevel);
 
-                // BATCH-078: 无小游戏物品掷签未中——20% 概率弹轻量提示（20 条通用文案，不含鱼类量词）。
+                // BATCH-078: 无小游戏物品掷签未中——轻量提示（20 条通用文案，不含鱼类量词）。
+                // BATCH-085: 概率 20%→10%，且该玩家已有提示显示/排队时由 HUDNotifier 忙时闸门丢弃。
                 if (data.IsNonFishCatch && !grantLevel &&
                     Game1.random.NextDouble() < DifficultyManager.NonFishLevelMissHintChance)
                 {
