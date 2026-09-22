@@ -38,6 +38,17 @@
   "hud.starfruitTea.14": "{{fishName}} drank Stardrop Tea and dreamed of swimming all seven seas... then hit your bait.",
   "hud.starfruitTea.15": "This {{fishName}} carries itself with Stardrop Tea nobility - even its struggles look classy.",
 
+  "hud.foodassist.1": "{{fishName}} also brought a treat: {{food}}!",
+  "hud.foodassist.2": "{{food}}, delivered balanced on {{fishName}}'s head.",
+  "hud.foodassist.3": "{{fishName}}: win this, and the {{food}} is yours.",
+  "hud.foodassist.4": "{{fishName}} traveled far and packed its own {{food}}.",
+  "hud.foodassist.5": "{{fishName}} fished a {{food}} out of the water for you.",
+  "hud.foodassist.6": "A local specialty from {{fishName}}'s home waters: {{food}}.",
+  "hud.foodassist.7": "{{fishName}} quietly slips you a {{food}}.",
+  "hud.foodassist.8": "Aid package! {{fishName}} brought {{food}}.",
+  "hud.foodassist.9": "{{fishName}} says: eat the {{food}} and fight without worry.",
+  "hud.foodassist.10": "{{fishName}} surfs in with a {{food}} - backup and lunch, both covered!",
+
   "hud.assist.1": "The glorious {{fishName}} {{rankName}} comes to your aid!",
   "hud.assist.2": "The lonely king finally has loyal {{fishName}} {{rankName}} by his side!",
   "hud.assist.3": "{{fishName}} {{rankName}} rides the waves to stand with you!",

@@ -22,6 +22,17 @@ namespace FishingExpanded.Data
         /// <summary>BATCH-058: 挑战鱼饵背板种子（键="鱼ID|难度等级"→种子）。同鱼同等级在钓起前行为一致；
         /// 成功钓起后由 ClearChallengePatternSeed 删除，下次重新随机。旧存档缺失默认空。</summary>
         public Dictionary<string, int> ChallengePatternSeeds { get; set; } = new Dictionary<string, int>();
+
+        /// <summary>BATCH-084: 食物助战——当日掷骰状态（0=未掷, 1=未中, 2=命中未消费, 3=命中已消费）。
+        /// 进日重算并立即写回（读档回滚不得改变当日结果）；旧存档缺失默认 0。</summary>
+        public int FoodAssistDailyState { get; set; }
+
+        /// <summary>BATCH-084: 食物助战——当前周窗口起始绝对日（Game1.Date.TotalDays 口径；
+        /// 窗口1=周一~周三，窗口2=周四~周日；与存储值不同即视为新窗口并清零已用量）。旧存档缺失默认 -1。</summary>
+        public int FoodAssistWindowStamp { get; set; } = -1;
+
+        /// <summary>BATCH-084: 食物助战——当前周窗口已发放数（每窗口上限 1，每周合计上限 2）。旧存档缺失默认 0。</summary>
+        public int FoodAssistWindowUsed { get; set; }
     }
 
     /// <summary>单种鱼的统计数据</summary>

@@ -38,6 +38,17 @@
   "hud.starfruitTea.14": "{{fishName}}喝了星之果茶后立志游遍七大湖，可惜第一站就撞上了你的鱼饵。",
   "hud.starfruitTea.15": "这尾{{fishName}}浑身散发着星之果茶的贵气，连挣扎溅起的水花都比别的鱼优雅。",
 
+  "hud.foodassist.1": "{{fishName}}还带来了{{food}}！",
+  "hud.foodassist.2": "{{fishName}}把{{food}}顶在头上送来了。",
+  "hud.foodassist.3": "{{fishName}}：打赢它，这份{{food}}归你。",
+  "hud.foodassist.4": "远道而来的{{fishName}}自带了{{food}}。",
+  "hud.foodassist.5": "{{fishName}}从水里捞了份{{food}}给你。",
+  "hud.foodassist.6": "这是{{fishName}}家乡的特产：{{food}}。",
+  "hud.foodassist.7": "{{fishName}}悄悄塞给你一份{{food}}。",
+  "hud.foodassist.8": "助战礼包！{{fishName}}带来了{{food}}。",
+  "hud.foodassist.9": "{{fishName}}表示：{{food}}管饱，放心作战。",
+  "hud.foodassist.10": "{{fishName}}叼着{{food}}破浪而来，管饱又暖心！",
+
   "hud.assist.1": "荣耀的{{fishName}}{{rankName}}前来护驾！",
   "hud.assist.2": "孤独的王终于等到忠诚的{{fishName}}{{rankName}}！",
   "hud.assist.3": "{{fishName}}{{rankName}}踏浪而来，为你助阵！",

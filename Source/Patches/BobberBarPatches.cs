@@ -124,6 +124,12 @@ namespace FishingExpanded.Patches
             public bool PeakTipShown { get; set; }
             public float ForcedPerseveranceSeconds { get; set; }
 
+            // BATCH-084: 食物助战（构造 Prefix 已选定并应用补差 buff；Postfix 助战触发时补文案与日志）
+            public string FoodAssistItemId { get; set; }
+            public string FoodAssistDisplayName { get; set; }
+            public int FoodAssistTier { get; set; }
+            public bool FoodAssistDelivered { get; set; }
+
             // BATCH-028: 高难度鱼跳机制状态（调整后难度 150+，非鱼王）
             public float JumpIntervalSeconds { get; set; } // 触发间隔（8/6/5/4/3 秒分档）
             public float JumpCooldownSeconds { get; set; } // 上次跳跃完成后的剩余冷却
@@ -137,6 +143,9 @@ namespace FishingExpanded.Patches
         private static readonly ConditionalWeakTable<BobberBar, InstanceData> _instanceData =
             new ConditionalWeakTable<BobberBar, InstanceData>();
         private static long _nextTipId; // BATCH-058O: 提示诊断 ID 递增源
+
+        // BATCH-084: 构造 Prefix 发放食物助战后暂存的奖励描述，Postfix 建 InstanceData 时取走（每次构造必清）。
+        private static FoodAssistReward _pendingFoodAssist;
 
         // BATCH-058K/058N: 提示锚点写死为“距绿条的绝对像素距离”。绿条左缘 = xPositionOnScreen+64，宽 36px（原生 9×4 缩放）。
         // 鱼其他提示：右缘距绿条左缘 50px（右对齐，2026-08-14 用户定稿）；鱼动作提示：左缘距绿条右缘 24px（左对齐）。
@@ -420,36 +429,53 @@ namespace FishingExpanded.Patches
         }
 
         /// <summary>构造函数 Prefix：消费 fish_next 强制鱼种标记，在原生 BobberBar 创建前替换目标鱼。
-        /// 必须使用原生期望的未限定 ID（如 151）；Mod 内部统一用 (O)151。</summary>
+        /// 必须使用原生期望的未限定 ID（如 151）；Mod 内部统一用 (O)151。
+        /// BATCH-084: 食物助战在本边界（原生读取钓鱼等级计算绿条高度之前）消费当日命中并发放物品/补差 buff，
+        /// 使本场战斗直接吃到加成；鱼王与挑战鱼饵不消费命中（顺延），节日原生模式整链路跳过。</summary>
         [HarmonyPatch(MethodType.Constructor, new Type[] {
             typeof(string), typeof(float), typeof(bool), typeof(System.Collections.Generic.List<string>),
             typeof(string), typeof(bool), typeof(string), typeof(bool)
         })]
         [HarmonyPrefix]
-        public static void Constructor_Prefix(ref string whichFish, ref string setFlagOnCatch, ref bool isBossFish)
+        public static void Constructor_Prefix(ref string whichFish, ref string setFlagOnCatch, ref bool isBossFish, string baitID)
         {
             try
             {
+                // BATCH-084: 每次构造开始先清空待发槽——只有本构造的 Prefix 重新赋值才有效，
+                // 防止上一局原生构造异常（Postfix 未执行）时奖励泄漏到下一局
+                _pendingFoodAssist = null;
+
+                // BATCH-072: 强制鱼种消费与替换（无强制时继续执行本 Prefix 的其余逻辑）
                 string forcedFishId = ModEntry.ConsumeForceNextFish(Game1.player);
-                if (string.IsNullOrEmpty(forcedFishId))
-                    return;
+                if (!string.IsNullOrEmpty(forcedFishId))
+                {
+                    string nativeFishId = forcedFishId.StartsWith("(O)", StringComparison.OrdinalIgnoreCase)
+                        ? forcedFishId.Substring(3)
+                        : forcedFishId;
 
-                string nativeFishId = forcedFishId.StartsWith("(O)", StringComparison.OrdinalIgnoreCase)
-                    ? forcedFishId.Substring(3)
-                    : forcedFishId;
+                    whichFish = nativeFishId;
+                    setFlagOnCatch = null; // 强制更换鱼种后丢弃原鱼临时 flag，避免错发邮件
+                    isBossFish = false;    // 强制更换鱼种后不再是原鱼 Boss，避免错误全局消息/经验倍率
 
-                whichFish = nativeFishId;
-                setFlagOnCatch = null; // 强制更换鱼种后丢弃原鱼临时 flag，避免错发邮件
-                isBossFish = false;    // 强制更换鱼种后不再是原鱼 Boss，避免错误全局消息/经验倍率
+                    FishingLog.Log(
+                        $"[BobberBar] 强制鱼种生效 | 玩家: {Game1.player?.Name} | " +
+                        $"鱼ID: {SpecialFishHelper.NormalizeItemId(nativeFishId)} | 原生构造ID: {nativeFishId}",
+                        LogLevel.Info);
+                }
 
-                FishingLog.Log(
-                    $"[BobberBar] 强制鱼种生效 | 玩家: {Game1.player?.Name} | " +
-                    $"鱼ID: {SpecialFishHelper.NormalizeItemId(nativeFishId)} | 原生构造ID: {nativeFishId}",
-                    LogLevel.Info);
+                // BATCH-084: 食物助战发放（测试强制 fish_foodassist 不消费存档状态、不占窗口额度）
+                if (!Services.FestivalFishingService.IsVanillaFestivalMode() &&
+                    !SpecialFishHelper.IsLegendaryFish(SpecialFishHelper.NormalizeItemId(whichFish)) &&
+                    baitID != "(O)ChallengeBait")
+                {
+                    bool forceTest = ModEntry.ConsumeForceFoodAssistFlag();
+                    _pendingFoodAssist = FoodAssistService.TryGrantAtConstruction(
+                        Game1.player, force: forceTest);
+                }
             }
             catch (Exception ex)
             {
-                FishingLog.Log($"[BobberBarPatches] 强制鱼种消费失败: {ex}", LogLevel.Warn);
+                FishingLog.Log($"[BobberBarPatches] 构造 Prefix 失败: {ex}", LogLevel.Warn);
             }
         }
 
@@ -476,6 +502,10 @@ namespace FishingExpanded.Patches
         {
             try
             {
+                // BATCH-084: 取走 Prefix 暂存的食物助战奖励（每次构造必清，避免泄漏到下一局）
+                var pendingFoodAssist = _pendingFoodAssist;
+                _pendingFoodAssist = null;
+
                 // BATCH-039: 消费持久战测试标志（构造边界；鱼王也消费并丢弃，避免泄漏到下一局）
                 float forcedPerseveranceSeconds = ModEntry.ConsumeForcePerseveranceSeconds();
 
@@ -529,7 +559,10 @@ namespace FishingExpanded.Patches
                     BaitId = baitID, // BATCH-038
                     HasChallengeBait = baitID == "(O)ChallengeBait", // BATCH-038
                     EffectiveDifficulty = ___difficulty,
-                    ForcedPerseveranceSeconds = forcedPerseveranceSeconds // BATCH-039
+                    ForcedPerseveranceSeconds = forcedPerseveranceSeconds, // BATCH-039
+                    FoodAssistItemId = pendingFoodAssist?.ItemId, // BATCH-084
+                    FoodAssistDisplayName = pendingFoodAssist?.DisplayName, // BATCH-084
+                    FoodAssistTier = pendingFoodAssist?.Tier ?? 0 // BATCH-084
                 };
                 _instanceData.Add(__instance, instanceData);
 
@@ -1021,17 +1054,17 @@ namespace FishingExpanded.Patches
             return _instanceData.TryGetValue(instance, out var data) ? data.BattleElapsedSeconds : 0f;
         }
 
-        /// <summary>BATCH-039: 30 秒失败奖励概率（50%）与奖励物品池（+3 钓鱼料理；海泡布丁 (O)265 为 60 秒专属）。
-        /// BATCH-052: 228 实为生鱼寿司（Maki Roll，无钓鱼加成）；海之菜肴真实 ID=242（Wiki 物品编号工具核验）。
-        /// BATCH-073: 60 秒档海泡布丁概率改为 60%（用户确认）。</summary>
+        /// <summary>BATCH-039: 30~60 秒失败奖励概率（50%）。BATCH-073: ≥60 秒档概率改 60%（40% 无奖励、不叠加 30 秒抽奖）。
+        /// BATCH-084: 奖励降档——30~60 秒档改发随机 +1 钓鱼食物{鳟鱼汤/虾鸡尾酒/枫糖棒}，
+        /// ≥60 秒档改发随机 +2 钓鱼食物{法式田螺/鱼肉卷}（本地 wiki 镜像核实；ID 由 FoodAssistService 运行期解析）；
+        /// 海泡布丁与 +3 料理退出本渠道（移至食物助战 REQ-B）。两档各自每天最多发 1 次（内存态计数）。</summary>
         private const double PerseveranceChance = 0.5;
-        private const double PerseveranceSeaFoamPuddingChance = 0.6;
-        private const string PerseveranceSeaFoamPudding = "(O)265";
-        private static readonly string[] PerseverancePlusThreeFoods = { "(O)242", "(O)728", "(O)730" };
+        private const double PerseveranceSixtyTierChance = 0.6;
 
-        /// <summary>BATCH-039/073: 持久战安慰奖励（失败单发边界调用一次；≥60 秒 60% 概率海泡布丁 (+4 钓鱼)，
-        /// 40% 不发任何持久战奖励，不叠加 30 秒抽奖；30~60 秒 50% 概率随机 +3 钓鱼料理；fish_persisttest 强制秒数优先）。
-        /// 发放走原生溢出菜单；提示入 FIFO 队列；每次失败最多一次。</summary>
+        /// <summary>BATCH-039/084: 持久战安慰奖励（失败单发边界调用一次）——
+        /// 30~60 秒 50% 概率 +1 池三选一；≥60 秒 60% 概率 +2 池二选一；不叠加；
+        /// 两档独立每日各限 1 次（fish_persisttest 测试强制绕过计数并日志标注）；
+        /// 发放走原生溢出菜单；提示入 FIFO 队列。补差 buff 不适用本渠道（用户选定范围 A）。</summary>
         private static void TryGrantPerseveranceReward(InstanceData data)
         {
             try
@@ -1040,33 +1073,58 @@ namespace FishingExpanded.Patches
                     return;
 
                 float forcedSeconds = data.ForcedPerseveranceSeconds;
-                float elapsed = forcedSeconds > 0f ? forcedSeconds : data.BattleElapsedSeconds;
+                bool forcedTest = forcedSeconds > 0f;
+                float elapsed = forcedTest ? forcedSeconds : data.BattleElapsedSeconds;
 
-                string itemId;
+                // BATCH-084: 档位判定（tier 0=30~60 秒档；tier 1=≥60 秒档；两档互斥不叠加）
+                int tier;
+                double chance;
                 if (elapsed >= 60f)
                 {
-                    if (Game1.random.NextDouble() >= PerseveranceSeaFoamPuddingChance)
-                        return;
-                    itemId = PerseveranceSeaFoamPudding;
+                    tier = 1;
+                    chance = PerseveranceSixtyTierChance;
                 }
-                else if (elapsed >= 30f && Game1.random.NextDouble() < PerseveranceChance)
+                else if (elapsed >= 30f)
                 {
-                    itemId = PerseverancePlusThreeFoods[Game1.random.Next(PerseverancePlusThreeFoods.Length)];
+                    tier = 0;
+                    chance = PerseveranceChance;
                 }
                 else
                 {
                     return;
                 }
 
+                if (Game1.random.NextDouble() >= chance)
+                    return;
+
+                string itemId = FoodAssistService.PickPerseveranceReward(tier);
+                if (itemId == null)
+                {
+                    FishingLog.Log("[BATCH-084] 持久战奖励池不可用（物品解析失败），跳过发放", LogLevel.Warn);
+                    return;
+                }
+
                 Farmer owner = data.Owner ?? Game1.player;
+
+                // BATCH-084: 每日限次（两档独立各 1 次；测试强制绕过且不计入正常计数）
+                if (!forcedTest && !DifficultyManager.TryConsumePerseveranceDaily(tier, owner))
+                {
+                    FishingLog.Log(
+                        $"[BATCH-084] 持久战奖励被每日上限拦截 | 玩家: {owner.UniqueMultiplayerID} | 档位: {(tier == 1 ? "60秒(+2)" : "30秒(+1)")} | " +
+                        $"当日已发: {DifficultyManager.GetPerseveranceDailyCount(tier, owner)}/{DifficultyManager.PerseveranceDailyCapPerTier} | 耗时: {elapsed:F0}s",
+                        LogLevel.Info);
+                    return;
+                }
+
                 Item item = ItemRegistry.Create(itemId, 1);
                 owner.addItemByMenuIfNecessary(item);
                 HUDNotifier.ShowPerseveranceRewardNotification(data.FishId, data.DifficultyLevel);
 
                 FishingLog.Log(
                     $"[BobberBar] 持久战奖励 | 实例: {data.GetHashCode()} | 鱼ID: {data.FishId} | " +
-                    $"耗时: {elapsed:F0}s | 奖励: {item.DisplayName} | 玩家: {owner.UniqueMultiplayerID}" +
-                    (forcedSeconds > 0f ? " | 测试强制" : ""),
+                    $"耗时: {elapsed:F0}s | 奖励: {item.DisplayName}({itemId}) | " +
+                    $"当日第 {DifficultyManager.GetPerseveranceDailyCount(tier, owner)}/{DifficultyManager.PerseveranceDailyCapPerTier} 次({(tier == 1 ? "60秒档" : "30秒档")}) | 玩家: {owner.UniqueMultiplayerID}" +
+                    (forcedTest ? " | 测试强制(不计次)" : ""),
                     LogLevel.Info);
             }
             catch (Exception ex)
@@ -1095,6 +1153,26 @@ namespace FishingExpanded.Patches
                 {
                     Game1.random = data.SavedGameRandom;
                     data.SavedGameRandom = null;
+                }
+
+                // BATCH-084: 食物助战物品入包（首个 update Tick 的 Postfix 执行；此时 activeClickableMenu
+                // 已是本小游戏，背包满走原生溢出菜单，与持久战奖励既定发放路径同语义；补差 buff 已在构造
+                // Prefix 应用。放在随机源恢复之后：入包不消耗挑战鱼饵背板的固定种子序列）
+                if (!data.FoodAssistDelivered && data.FoodAssistItemId != null)
+                {
+                    data.FoodAssistDelivered = true;
+                    try
+                    {
+                        Item foodItem = ItemRegistry.Create(data.FoodAssistItemId, 1);
+                        (data.Owner ?? Game1.player).addItemByMenuIfNecessary(foodItem);
+                        FishingLog.Log(
+                            $"[BATCH-084] 食物助战物品入包 | 玩家: {(data.Owner ?? Game1.player)?.UniqueMultiplayerID} | 物品: {foodItem.DisplayName}({data.FoodAssistItemId})",
+                            LogLevel.Info);
+                    }
+                    catch (Exception ex)
+                    {
+                        FishingLog.Log($"[BATCH-084] 食物助战物品入包失败: {ex}", LogLevel.Warn);
+                    }
                 }
 
                 // BATCH-058: 停战检测——只算绿条：绿条 3 秒不动 → 待命（鱼出绿条外 5px 才停）
@@ -1641,6 +1719,22 @@ namespace FishingExpanded.Patches
                     return;
 
                 bool forced = ModEntry.ConsumeForceAssistFlag();
+                // BATCH-084: 当日食物助战命中已在构造 Prefix 发放物品并应用补差 buff
+                bool foodForced = !string.IsNullOrEmpty(data.FoodAssistItemId);
+
+                // BATCH-084A（2026-08-24 用户修订，方案 A）：食物助战与皇冠助战互斥——
+                // 命中实例为"纯食物助战"：只弹食物文案，不选护驾鱼、不加临时等级、不出助战文案；
+                // 其余实例的皇冠助战概率逻辑完全不受影响。
+                if (foodForced)
+                {
+                    string foodText = FoodAssistService.PickFoodAssistText(player, data.FoodAssistDisplayName);
+                    AddTip(data.OtherTips, foodText, tipX, tipY, centered: false, rightAligned: true, lifetimeOverride: 15f);
+                    FishingLog.Log(
+                        $"[BATCH-084] 食物助战触发(纯食物,与皇冠助战互斥) | 玩家: {player.UniqueMultiplayerID} | " +
+                        $"物品: {data.FoodAssistDisplayName}({data.FoodAssistItemId}) | 档位: +{data.FoodAssistTier} | 文案: {foodText}",
+                        LogLevel.Info);
+                    return;
+                }
 
                 // BATCH-038: 挑战鱼饵下不获得其他鱼助战（用户确认）；强制测试标志同样消费。
                 if (data.HasChallengeBait)

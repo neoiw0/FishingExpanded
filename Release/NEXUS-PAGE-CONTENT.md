@@ -59,7 +59,7 @@ Nexus #50595 — your next cast is waiting.
 - Personalized praise: 50+ characters (and animal friends) each have their own reaction lines
 - High-reputation fish jumps, exhaustion, truce breaks, and combo phrases
 - Challenge Bait boss-mode with seeded patterns
-- Perseverance rewards (Seafoam Pudding, +3 cooking dishes)
+- Perseverance rewards (+1/+2 fishing foods, once per day each)
 - Starfruit Tea drops at level 50+
 - Crab pot and trash item progression
 - Festival fishing toggle (vanilla by default)
@@ -184,7 +184,7 @@ Fishing Expanded 就是我一直梦想中的星露谷钓鱼 DLC：一封和原�
 - 巨型鱼展示：村民会为你惊叹
 - 图鉴皇冠：让鱼竿手感越来越顺滑
 - 挑战鱼饵：把高难鱼变成真正的 Boss 战
-- 持久战奖励：苦战失败也有海泡布丁安慰
+- 持久战奖励：苦战失败也有 +1/+2 钓鱼食物安慰（每天各一次）
 - 星之果茶：高等级成功钓获的稳定福利
 
 它公平、不膨胀、深度融入原版。没有假奖励，没有强制肝度——只有每次抛竿都在成长的快乐。
@@ -204,7 +204,7 @@ N网号 50595：你的下一杆，正在等你。
 - 个性化赞美：50 多位角色（含动物朋友）各有专属台词
 - 高难鱼跳跃、力竭、停战、招式短语
 - 挑战鱼饵背板 Boss 战
-- 持久战奖励（海泡布丁、+3 钓鱼料理）
+- 持久战奖励（+1/+2 钓鱼食物，每日限次）
 - 50 级以上星之果茶掉落
 - 蟹笼与垃圾物品升级
 - 节日钓鱼开关（默认完全原版）

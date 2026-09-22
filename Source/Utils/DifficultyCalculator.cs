@@ -401,6 +401,39 @@ namespace FishingExpanded.Utils
             return originalAdjustedDifficulty + (80f - originalAdjustedDifficulty) * GetExhaustionPercent(elapsedSeconds);
         }
 
+        /// <summary>BATCH-084: 食物助战日概率系数（61 皇冠时 p=0.5，实际期望≈1.8 次/周，用户确认）。</summary>
+        public const double FoodAssistDailyChanceFactor = 0.5;
+
+        /// <summary>BATCH-084: 食物助战单窗口发放上限（周一~周三与周四~周日各 1 个，每周合计 ≤2）。</summary>
+        public const int FoodAssistWindowQuota = 1;
+
+        /// <summary>BATCH-084: 食物助战当日命中概率 = (可计数皇冠 ÷ 61) × 系数；0 皇冠恒为 0。
+        /// 纯函数供 fish_selftest 只读核验。</summary>
+        public static double GetFoodAssistDailyChance(int countableCrowns, int crownTarget)
+        {
+            if (countableCrowns <= 0 || crownTarget <= 0)
+                return 0.0;
+            return Math.Min(1.0, countableCrowns / (double)crownTarget * FoodAssistDailyChanceFactor);
+        }
+
+        /// <summary>BATCH-084: 是否食物助战窗口重置日（周一开启窗口 1，周四开启窗口 2）。
+        /// 纯函数供 fish_selftest 只读核验。</summary>
+        public static bool IsFoodAssistWindowResetDay(DayOfWeek day)
+        {
+            return day == DayOfWeek.Monday || day == DayOfWeek.Thursday;
+        }
+
+        /// <summary>BATCH-084: 计算当前所属周窗口的起始绝对日（Game1.Date.TotalDays 口径，周一或周四）。
+        /// 存档窗口戳与此值不同 → 新窗口（清零已用量）。纯函数供 fish_selftest 只读核验。</summary>
+        public static int GetFoodAssistWindowStamp(int totalDays, DayOfWeek day)
+        {
+            int daysSinceMonday = ((int)day - (int)DayOfWeek.Monday + 7) % 7;
+            // 周一~周三（0~2）属于窗口 1（起点=本周一）；周四~周日（3~6）属于窗口 2（起点=本周四）
+            return daysSinceMonday < 3
+                ? totalDays - daysSinceMonday
+                : totalDays - (daysSinceMonday - 3);
+        }
+
         /// <summary>线性插值</summary>
         private static float Lerp(float a, float b, float t)
         {
